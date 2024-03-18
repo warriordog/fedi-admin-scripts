@@ -26,3 +26,12 @@ This script is currently rather difficult to use, due to the lack of a proper au
 
 * You can set `dryRun` to `true` in order to test your configuration and connection settings. All blocks will be processed, but no changes will be saved to the instances.
 * If you get any kind of error like "unauthorized" or "unauthenticated", then check your access tokens. They may need to be replaced if much time has passed.
+
+### follow-relations: SQL query for listing cross-server follow relationships
+
+This query is intended for use with Sharkey, although it should work with any Misskey-based instance. It will return a table of (follower, followee) rows where one side is a user from your local instance and the other is a user from one of a provided set of target instance(s).
+
+#### Usage:
+
+1. Edit `printFollowRelations.sql` and replace the example instances with those that you want to check. 
+2. Connect to Sharkey's PostgreSQL database and execute the script.
