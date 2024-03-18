@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "ES2022",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+
+    "noEmit": true,
+    "checkJs": true,
+    "allowJs": true,
+
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}
