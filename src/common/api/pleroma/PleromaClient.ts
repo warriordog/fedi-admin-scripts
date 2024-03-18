@@ -1,22 +1,22 @@
-import {AkkomaConfig} from "./AkkomaConfig.js";
+import {PleromaConfig} from "./PleromaConfig.js";
 
-export class AkkomaClient {
+export class PleromaClient {
     constructor(
         public readonly host: string,
         private readonly token: string
     ) {}
 
-   public async readConfig(): Promise<AkkomaConfig> {
+   public async readConfig(): Promise<PleromaConfig> {
        const resp = await this.makeGetRequest('/api/v1/pleroma/admin/config');
 
         if (!resp.ok) {
             throw new Error(`Failed to read instance config, got status ${resp.status} ${resp.statusText}`);
         }
 
-        return await resp.json() as AkkomaConfig;
+        return await resp.json() as PleromaConfig;
     }
 
-    public async saveConfig(config: AkkomaConfig): Promise<void> {
+    public async saveConfig(config: PleromaConfig): Promise<void> {
         const resp = await this.makePostRequest('/api/v1/pleroma/admin/config', config);
 
         if (!resp.ok) {

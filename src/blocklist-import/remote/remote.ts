@@ -1,8 +1,8 @@
 import {Block} from "../domain/block.js";
 import {BlockResult} from "../domain/blockResult.js";
 import {SharkeyRemote} from "./SharkeyRemote.js";
-import {AkkomaRemote} from "./AkkomaRemote.js";
-import {Config, RemoteConfig, RemoteType} from "../domain/config.js";
+import {PleromaRemote} from "./PleromaRemote.js";
+import {Config, RemoteConfig} from "../domain/config.js";
 
 export interface Remote {
     /**
@@ -21,8 +21,8 @@ export function createRemote({type, host, token}: RemoteConfig, config: Config):
     if (type === 'sharkey')
         return new SharkeyRemote(config, host, token);
 
-    if (type === 'akkoma')
-        return new AkkomaRemote(config, host, token);
+    if (type === 'pleroma' || type === 'akkoma')
+        return new PleromaRemote(config, host, token);
 
     throw new Error(`Unknown remote type: ${type}`);
 }

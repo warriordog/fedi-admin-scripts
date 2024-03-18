@@ -1,26 +1,30 @@
-import {AkkomaClient} from "../../common/api/akkoma/AkkomaClient.js";
+import {PleromaClient} from "../../common/api/pleroma/PleromaClient.js";
 import {Remote} from "./remote.js";
 import {Block} from "../domain/block.js";
 import {BlockResult} from "../domain/blockResult.js";
-import {AkkomaConfig, AkkomaConfigSection, AkkomaTuple} from "../../common/api/akkoma/AkkomaConfig.js";
+import {PleromaConfig, PleromaConfigSection, Tuple} from "../../common/api/pleroma/PleromaConfig.js";
 import {Config} from "../domain/config.js";
 
-export class AkkomaRemote implements Remote {
-    private readonly client: AkkomaClient;
+/**
+ * Applies blocks to Pleroma / Akkoma instances.
+ * Supports Akkoma's "background_removal" action for mrf_simple.
+ */
+export class PleromaRemote implements Remote {
+    private readonly client: PleromaClient;
 
     constructor(
         private readonly config: Config,
         public readonly host: string,
         token: string
     ) {
-        this.client = new AkkomaClient(host, token);
+        this.client = new PleromaClient(host, token);
     }
 
     async tryApplyBlock(block: Block): Promise<BlockResult> {
         // Read config
         const instanceConfig = await this.client.readConfig();
-        const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as AkkomaMRFSection;
-        const mrfSection = findConfigSection(instanceConfig, ':pleroma', ':mrf') as AkkomaMRFSection;
+        const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as MRFSection;
+        const mrfSection = findConfigSection(instanceConfig, ':pleroma', ':mrf') as MRFSection;
 
         // Unpack tuple objects.
         // Each one is a list of [domain, block reason] pairs for a particular category (but in a really weird format).
@@ -144,12 +148,13 @@ export class AkkomaRemote implements Remote {
     }
 }
 
-export type AkkomaMRFSection = AkkomaConfigSection<AkkomaTuple<AkkomaTuple<string>[]>[]>;
+// gross
+type MRFSection = PleromaConfigSection<Tuple<Tuple<string>[]>[]>;
 
 /**
  * Finds and returns a specified configuration section by group / key.
  */
-function findConfigSection(config: AkkomaConfig, group: string, key: string): AkkomaConfigSection<unknown> {
+function findConfigSection(config: PleromaConfig, group: string, key: string): PleromaConfigSection<unknown> {
     const mrfSimple = config.configs.find(c => c.group === group && c.key === key);
     if (!mrfSimple) {
         throw new Error(`Failed to read instance config, can't find ${group}/${key} in the response`);
@@ -162,7 +167,7 @@ function findConfigSection(config: AkkomaConfig, group: string, key: string): Ak
  * Gets or creates a configuration tuple in the given MRF config.
  * Returns an array of [domain, block reason] tuples for the given category.
  */
-function getTuple(config: AkkomaMRFSection, key: string): AkkomaTuple<string>[] {
+function getTuple(config: MRFSection, key: string): Tuple<string>[] {
     // Happy path - it already exists in the config
     for (const entry of config.value) {
         if (entry.tuple[0] === key) {
@@ -171,7 +176,7 @@ function getTuple(config: AkkomaMRFSection, key: string): AkkomaTuple<string>[] 
     }
 
     // Sad (but most likely) path - it doesn't exist yet, so we need to create it.
-    const tupleData: AkkomaTuple<string>[] = [];
+    const tupleData: Tuple<string>[] = [];
 
     // It's *extremely important* that we add the entry back to the original config object!
     // Otherwise, the changes will be detached and not sent back to the server.

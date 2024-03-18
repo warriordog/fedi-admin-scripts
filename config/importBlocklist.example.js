@@ -47,7 +47,7 @@ export default {
     /**
      * List of instances to apply blocks, as an array of RemoteConfig objects.
      * Each should specify three properties:
-     *  1. "type" - one of "sharkey" or "akkoma".
+     *  1. "type" - one of "sharkey", "pleroma", or "akkoma".
      *  2. "host" - hostname of the instance.
      *  3. "token" - session token of an admin user.
      *
