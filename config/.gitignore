@@ -1,0 +1,4 @@
+*
+!*.gitignore
+!*.example.js
+!*.d.ts

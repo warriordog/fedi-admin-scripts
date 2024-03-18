@@ -1,0 +1,5 @@
+domain,severity,public_comment,reject_media,reject_reports,obfuscate,set_nsfw
+1.example.com,silence,this instance is silenced and forced NSFW.,False,False,False,True
+2.example.com,suspend,"this instance is suspended, because it's much worse.",False,False,False,False
+3.example.com,suspend,block notifier bot,False,False,True,False
+4.example.com,disconnect,instance is offline; stop delivering posts,False,False,False,False
