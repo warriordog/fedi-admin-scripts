@@ -29,7 +29,6 @@ export class AkkomaRemote implements Remote {
         const followersOnly = getTuple(mrfSimpleSection, ':followers_only');
         const mediaRemoval = getTuple(mrfSimpleSection, ':media_removal');
         const mediaNSFW = getTuple(mrfSimpleSection, ':media_nsfw');
-        const accept = getTuple(mrfSimpleSection, ':accept');
         const reportRemoval = getTuple(mrfSimpleSection, ':report_removal');
         const avatarRemoval = getTuple(mrfSimpleSection, ':avatar_removal');
         const bannerRemoval = getTuple(mrfSimpleSection, ':banner_removal');
@@ -45,7 +44,6 @@ export class AkkomaRemote implements Remote {
         const existingRejectBanners = bannerRemoval.find(t => t.tuple[0] === block.host);
         const existingRejectBackgrounds = backgroundRemoval.find(t => t.tuple[0] === block.host);
         const existingSetNSFW = mediaNSFW.find(t => t.tuple[0] === block.host);
-        const existingDisconnect = accept.find(t => t.tuple[0] === block.host);
         const existingRejectReports = reportRemoval.find(t => t.tuple[0] === block.host);
         const existingTransparencyExclusions = transparencyExclusions.find(t => t.tuple[0] === block.host);
 
@@ -58,10 +56,9 @@ export class AkkomaRemote implements Remote {
         const isBannerRejected = !!existingRejectBanners;
         const isBackgroundRejected = !!existingRejectBackgrounds;
         const isSetNSFW = !!existingSetNSFW;
-        const isDeliveryStopped = !!existingDisconnect;
         const isReportRejected = !!existingRejectReports;
         const isTransparencyExcluded = !!existingTransparencyExclusions;
-        const hasExistingBlock = isUnlisted || isSuspended || isSilenced || isMediaRejected || isAvatarRejected || isBannerRejected || isBackgroundRejected || isSetNSFW || isDeliveryStopped || isReportRejected || isTransparencyExcluded;
+        const hasExistingBlock = isUnlisted || isSuspended || isSilenced || isMediaRejected || isAvatarRejected || isBannerRejected || isBackgroundRejected || isSetNSFW || isReportRejected || isTransparencyExcluded;
 
         // Compute changes
         const doUnlist = block.unlist && !isUnlisted;
@@ -72,10 +69,9 @@ export class AkkomaRemote implements Remote {
         const doRejectBanners = block.rejectBanners && !isBannerRejected;
         const doRejectBackgrounds = block.rejectBackgrounds && !isBackgroundRejected;
         const doSetNSFW = block.setNSFW && !isSetNSFW;
-        const doDisconnect = block.disconnect && !isDeliveryStopped;
         const doRejectReports = block.rejectReports && !isReportRejected;
         const doExcludeTransparency = block.redact && !isTransparencyExcluded;
-        const hasBlockChanges = doUnlist || doSuspend || doSilence || doRejectMedia || doRejectAvatars || doRejectBanners || doRejectBackgrounds || doSetNSFW || doDisconnect || doRejectReports || doExcludeTransparency;
+        const hasBlockChanges = doUnlist || doSuspend || doSilence || doRejectMedia || doRejectAvatars || doRejectBanners || doRejectBackgrounds || doSetNSFW || doRejectReports || doExcludeTransparency;
 
         // Check for changes
         if (!hasBlockChanges) {
@@ -123,11 +119,6 @@ export class AkkomaRemote implements Remote {
             mediaNSFW.push({ tuple: [block.host, block.reason] });
         else if (isSetNSFW && block.reason)
             existingSetNSFW.tuple[1] = block.reason;
-
-        if (doDisconnect)
-            accept.push({ tuple: [block.host, block.reason] });
-        else if (isDeliveryStopped && block.reason)
-            existingDisconnect.tuple[1] = block.reason;
 
         if (doRejectReports)
             reportRemoval.push({ tuple: [block.host, block.reason] });
