@@ -3,16 +3,14 @@
 Small collection of scripts, tools, and queries meant for use by fediverse system administrators.
 These scripts are meant for use with Sharkey and/or Akkoma, but can be adapted for other server software.
 
-## Scripts:
-
-### blocklist-import: synchronize domain blocks across servers
+## blocklist-import: synchronize domain blocks across servers
 
 This script connects to multiple remote instances and applies a common set of domain blocks.
 One or more mastodon-format domain blocklists can be loaded, and the included blocks will be added to all attached instances. The tooling will automatically merge domains that appear in multiple entries, and remote instances are introspected to ensure that blocks are never duplicated on the server. Sharkey, Pleroma, and Akkoma are all supported.
 
 Additionally, the script ~~can~~ *will soon be able to* generate block announcement posts including domain, actions taken, and reasons. Posts are returned in markdown format for easy posting on any instance software.
 
-#### Usage:
+### Usage:
 
 This script is currently rather difficult to use, due to the lack of a proper authentication method. You will need to capture a session token for your admin account(s) before running the script. (see step 3 for more details.)
 
@@ -22,16 +20,16 @@ This script is currently rather difficult to use, due to the lack of a proper au
 4. Run `npm install` (you only have to do this once)
 5. Run `npm run import-blocklist` and the script will begin importing blocks. Progress will be printed for each block and instance.
 
-#### Tips:
+### Tips:
 
 * You can set `dryRun` to `true` in order to test your configuration and connection settings. All blocks will be processed, but no changes will be saved to the instances.
 * If you get any kind of error like "unauthorized" or "unauthenticated", then check your access tokens. They may need to be replaced if much time has passed.
 
-### follow-relations: SQL query for listing cross-server follow relationships
+## follow-relations: SQL query for listing cross-server follow relationships
 
 This query is intended for use with Sharkey, although it should work with any Misskey-based instance. It will return a table of (follower, followee) rows where one side is a user from your local instance and the other is a user from one of a provided set of target instance(s).
 
-#### Usage:
+### Usage:
 
 1. Edit `printFollowRelations.sql` and replace the example instances with those that you want to check. 
 2. Connect to Sharkey's PostgreSQL database and execute the script.
