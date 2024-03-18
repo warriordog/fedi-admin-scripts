@@ -111,9 +111,9 @@ function printStats(remotes: Remote[]): void {
         const lostFollowers = (remote.stats.lostFollowers?.toString() ?? '?').padStart(lostFollowersWidth);
 
         if (remote.stats.lostFollows !== undefined || remote.stats.lostFollowers !== undefined) {
-            console.info(`  ${remoteHost} processed ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward connections.`);
+            console.info(`  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward connections.`);
         } else {
-            console.info(`  ${remoteHost} processed ${createdBlocks} new and ${updatedBlocks} updated blocks.`);
+            console.info(`  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`);
         }
     }
     console.info('');
