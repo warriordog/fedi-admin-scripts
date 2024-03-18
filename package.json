@@ -1,0 +1,19 @@
+{
+  "name": "fedi-admin-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "import-blocklist": "tsc -b && node dist/blocklist-import/importBlocklist.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.28",
+    "typescript": "^5.4.2",
+    "undici-types": "^6.9.0"
+  }
+}
