@@ -39,7 +39,7 @@ export class SharkeyRemote implements Remote {
 
         // setNSFW (isNSFW) and stop delivery (suspend) must be set through instance.
         const doNSFW = block.setNSFW && !!instance && !instance.isNSFW;
-        const doStop = block.disconnect && !!instance && !instance.isSuspended;
+        const doDisconnect = block.disconnect && !!instance && !instance.isSuspended;
 
         // reason (moderationNote) must be set through instance, but
         const doModNote = !!instance;
@@ -50,7 +50,7 @@ export class SharkeyRemote implements Remote {
             (block.suspend === doSuspend) &&
             (block.silence === doSilence) &&
             (block.setNSFW === doNSFW || !instance) &&
-            (block.disconnect === doStop|| !instance);
+            (block.disconnect === doDisconnect|| !instance);
 
         // Apply everything
         if (!this.config.dryRun) {
@@ -73,7 +73,7 @@ export class SharkeyRemote implements Remote {
                 });
             }
 
-            if (doStop) {
+            if (doDisconnect) {
                 await this.client.updateInstance({
                     host: block.host,
                     isSuspended: instance.isSuspended || block.disconnect
