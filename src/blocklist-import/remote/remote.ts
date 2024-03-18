@@ -11,10 +11,43 @@ export interface Remote {
     readonly host: string;
 
     /**
+     *
+     */
+    readonly stats: Readonly<RemoteStats>;
+
+    /**
      * Attempts to apply the provided block to the instance, returning the result of the operation
      * @param block Block to apply
      */
     tryApplyBlock(block: Block): Promise<BlockResult>;
+}
+
+export interface RemoteStats {
+    /**
+     * Number of new blocks added in this session.
+     * Each domain is counted only once, even if multiple actions are taken.
+     */
+    createdBlocks: number;
+
+    /**
+     * Number of existing blocks that were changed in this session.
+     * Each domain is counted only once, even if multiple actions are taken.
+     */
+    updatedBlocks: number;
+
+    /**
+     * Number of inward follow relations that have been blocked during this session.
+     * An inward follow relation is a remote user who follows a local user.
+     * Undefined if the remote does not track this information.
+     */
+    lostFollowers?: number;
+
+    /**
+     * Number of outward follow relations that have been blocked during this session.
+     * An outward follow relation is a local user who follows a remote user.
+     * Undefined if the remote does not track this information.
+     */
+    lostFollows?: number;
 }
 
 export function createRemote({type, host, token}: RemoteConfig, config: Config): Remote {

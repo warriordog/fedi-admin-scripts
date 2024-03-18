@@ -2,6 +2,7 @@ import {Config, SourceConfig} from "./domain/config.js";
 import {createRemote, Remote} from "./remote/remote.js";
 import {Block} from "./domain/block.js";
 import {readSource} from "./source/source.js";
+import {SharkeyRemote} from "./remote/SharkeyRemote.js";
 
 export async function importBlocklist(config: Config): Promise<void> {
     if (config.sources.length < 1) {
@@ -32,16 +33,27 @@ export async function importBlocklist(config: Config): Promise<void> {
         console.info(`Loaded ${blocks.length} unique block(s) from ${config.sources.length} source list(s).`);
     else
         console.warn('No blocks were loaded - please check the script config and source lists.');
+    console.info('');
 
     // Do the import
     await importBlocksToRemotes(blocks, remotes);
+
+    // Print results
+    printStats(remotes);
 }
 
 async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promise<void> {
-    // Apply all blocks to all instances
-    for (const block of blocks) {
-        console.info('');
+    console.info('#################################################');
+    console.info('#              Applying all blocks              #');
+    console.info('#################################################');
+    console.info();
+    console.info(`Running matrix of ${blocks.length} blocks across ${remotes.length} remotes.`);
+    if (remotes.some(r => r instanceof SharkeyRemote)) {
+        console.info('This may take a while, please be patient.')   
+    }
+    console.info();
 
+    for (const block of blocks) {
         const actions = getBlockActions(block);
         if (actions.length > 0) {
             const actionString = concatBlockActions(actions);
@@ -73,8 +85,37 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
             }
         }
 
+        console.info('');
     }
+}
 
+function printStats(remotes: Remote[]): void {
+    console.info('#################################################');
+    console.info('#                Import complete                #');
+    console.info('#################################################');
+    console.info();
+
+    // Count the number of characters per column in the output, for pretty-printing.
+    const remoteHostWidth = remotes.reduce((max, remote) => Math.max(max, remote.host.length), 0);
+    const createdBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.createdBlocks.toString().length), 0);
+    const updatedBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.updatedBlocks.toString().length), 0);
+    const lostFollowsWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.lostFollows?.toString().length ?? 1), 0);
+    const lostFollowersWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.lostFollowers?.toString().length ?? 1), 0);
+
+    console.info('Final results for each remote:')
+    for (const remote of remotes) {
+        const remoteHost = `${remote.host}:`.padEnd(remoteHostWidth + 1, ' ');
+        const createdBlocks = remote.stats.createdBlocks.toString().padStart(createdBlocksWidth);
+        const updatedBlocks = remote.stats.updatedBlocks.toString().padStart(updatedBlocksWidth);
+        const lostFollows = (remote.stats.lostFollows?.toString() ?? '?' ).padStart(lostFollowsWidth);
+        const lostFollowers = (remote.stats.lostFollowers?.toString() ?? '?').padStart(lostFollowersWidth);
+
+        if (remote.stats.lostFollows !== undefined || remote.stats.lostFollowers !== undefined) {
+            console.info(`  ${remoteHost} processed ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward connections.`);
+        } else {
+            console.info(`  ${remoteHost} processed ${createdBlocks} new and ${updatedBlocks} updated blocks.`);
+        }
+    }
     console.info('');
 }
 

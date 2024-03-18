@@ -12,6 +12,11 @@ import {Config} from "../domain/config.js";
 export class PleromaRemote implements Remote {
     private readonly client: PleromaClient;
 
+    public readonly stats = {
+        createdBlocks: 0,
+        updatedBlocks: 0
+    };
+
     constructor(
         private readonly config: Config,
         public readonly host: string,
@@ -142,6 +147,13 @@ export class PleromaRemote implements Remote {
                 ],
                 needs_reboot: false
             });
+        }
+
+        // Update stats
+        if (hasExistingBlock) {
+            this.stats.updatedBlocks++;
+        } else {
+            this.stats.createdBlocks++;
         }
 
         return hasExistingBlock ? 'updated' : 'created';

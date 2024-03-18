@@ -10,6 +10,13 @@ import {toYMD} from "../../common/util/dateUtils.js";
 export class SharkeyRemote implements Remote {
     private readonly client: SharkeyClient;
 
+    public readonly stats = {
+        createdBlocks: 0,
+        updatedBlocks: 0,
+        lostFollows: 0,
+        lostFollowers: 0
+    };
+
     constructor(
         private readonly config: Config,
         public readonly host: string,
@@ -96,6 +103,22 @@ export class SharkeyRemote implements Remote {
                     host: block.host,
                     moderationNote: finalModNote
                 });
+            }
+        }
+
+        // Update stats
+        if (isNewBlock) {
+            this.stats.createdBlocks++;
+        } else {
+            this.stats.updatedBlocks++;
+        }
+        if (instance) {
+            if (doSuspend || doDisconnect) {
+                // These are flipped on purpose - sharkey uses opposite terminology
+                this.stats.lostFollowers += instance.followingCount;
+            }
+            if (doSuspend) {
+                this.stats.lostFollows += instance.followersCount;
             }
         }
 
