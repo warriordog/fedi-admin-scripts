@@ -6,14 +6,14 @@ export interface Config {
      * Not implemented yet.
      * Default: false
      */
-    retractBlocks?: boolean;
+    retractBlocks: boolean;
 
     /**
      * If true, then blocks will not be saved to any instance.
      * Instead, the predicted actions will be printed to the console.
      * Default: false
      */
-    dryRun?: boolean;
+    dryRun: boolean;
 
     /**
      * If true, then blocks will be uploaded through a faster method that reduces API calls.
@@ -21,23 +21,30 @@ export interface Config {
      * Doing so could cause blocks to be rolled back or applied incorrectly.
      * Default: false
      */
-    fastMode?: boolean;
+    fastMode: boolean;
 
     /**
      * If true, then existing blocks on each remote will be propagated to the others.
      * More specifically, each remote's current blocklist will be retrieved and used as an additional source.
      * Useful if you have manual blocks to synchronize, and *not* useful if you only have one remote.
      * Default: false
-     * TODO implement crossSync
+     * TODO implement crossSync and move to the RemoteConfig
      */
-    crossSync?: boolean;
+    crossSync: boolean;
 
     /**
-     * If true, then an announcement post will be generated for each instance.
-     * If set to an object, then custom rules and formatting can be applied.
-     * Default: false
+     * Configuration for block announcement posts.
      */
-    generateAnnouncements?: boolean | Partial<AnnouncementConfig>;
+    announcements: AnnouncementConfig;
+
+    /**
+     * If true, then a list of impacted follow relations will be shown.
+     * If false, then only a summary count will be shown.
+     * Some instances do not support this and will always show the summary count.
+     * Other instances do not track follow relations *at all* and will not display any information
+     * Default: true
+     */
+    printLostFollows: boolean;
 
     /**
      * List of blocklists to load, as an array of SourceConfig objects.
@@ -82,7 +89,7 @@ export interface Config {
 export interface AnnouncementConfig {
     /**
      * If true, announcements will be generated.
-     * Default: true
+     * Default: false
      */
     enabled: boolean;
 
@@ -125,6 +132,7 @@ export interface AnnouncementConfig {
     /**
      * Optional filter to selectively include blocks.
      * Return true to include the block, or false to exclude it.
+     * TODO replace this with "excludeInstances: string[]"
      * @param block
      */
     blockFilter?: (block: Block) => boolean;
@@ -177,7 +185,10 @@ export interface RemoteConfig {
 
 export type RemoteType = 'sharkey' | 'pleroma' | 'akkoma';
 
+/**
+ * Deeply-optional version of Config representing the config file schema.
+ */
+export type ConfigFile = Partial<Config & { announcements: Partial<AnnouncementConfig> }>;
 
-
-const config: Config;
+const config: ConfigFile;
 export default config;

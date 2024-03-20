@@ -1,6 +1,7 @@
 import {Block} from "../domain/block.js";
 import {Post} from "../domain/post.js";
-import {BlockResult} from "../domain/blockResult.js";
+import {BlockAction, BlockResult, FollowRelation} from "../domain/blockResult.js";
+import {SemiPartial} from "../../common/util/typeUtils.js";
 
 export abstract class Remote {
     /**
@@ -9,42 +10,164 @@ export abstract class Remote {
     abstract readonly host: string;
 
     /**
-     * Statistics of the block actions taken so far.
+     * True if the instance tracks outward follow relations.
+     * An outward follow relation is a local user who follows a remote user.
+     *
+     * If false, then the value of getLostFollows() and getLostFollowsCount() will be inaccurate.
      */
-    readonly stats: RemoteStats = {
-        createdBlocks: [],
-        updatedBlocks: [],
-        failedBlocks: []
-    };
+    abstract readonly tracksFollows: boolean;
 
     /**
-     * Attempts to apply the provided block to the instance, returning the result of the operation
+     * True if the instance tracks inward follow relations.
+     * An inward follow relation is a remote user who follows a local user.
+     *
+     * If false, then the value of getLostFollowers() and getLostFollowersCount() will be inaccurate.
+     */
+    abstract readonly tracksFollowers: boolean;
+
+    /**
+     * True if lost outward follow relations will be completely severed (unrecoverable).
+     * An outward follow relation is a local user who follows a remote user.
+     */
+    abstract readonly seversFollows: boolean;
+
+    /**
+     * True if lost inward follow relations will be completely severed (unrecoverable).
+     * An inward follow relation is a remote user who follows a local user.
+     */
+    abstract readonly seversFollowers: boolean;
+
+    /**
+     * Results of all blocks that have been attempted so far.
+     */
+    protected readonly blockResults: BlockResult[] = [];
+
+    /**
+     * Returns all blocks that have been newly created.
+     */
+    getCreatedBlocks(): BlockResult[] {
+        return this.blockResults.filter(r => r.action === 'created');
+    }
+
+    /**
+     * Returns all blocks that already existed, but were updated.
+     */
+    getUpdatedBlocks(): BlockResult[] {
+        return this.blockResults.filter(r => r.action === 'updated');
+    }
+
+    /**
+     * Returns all blocks that could not be processed due to errors or unsupported flags.
+     */
+    getUnsupportedBlocks(): BlockResult[] {
+        return this.blockResults.filter(r => r.action === 'unsupported');
+    }
+
+    /**
+     * Returns a list of all outward follow relations that were lost due to new or updated blocks.
+     * An outward follow relation is a local user who follows a remote user.
+     *
+     * Will return an empty array if the instance does not track follow relation details.
+     * For an accurate count, see getLostFollowsCount().
+     */
+    getLostFollows(): FollowRelation[] {
+        return this.blockResults
+            .map(b => b.lostFollows)
+            .filter(l => Array.isArray(l))
+            .flat() as FollowRelation[];
+    }
+
+    /**
+     * Returns a list of all inward follow relations that were lost due to new or updated blocks.
+     * An inward follow relation is a local user who follows a remote user.
+     *
+     * Will return an empty array if the instance does not track follow relation details.
+     * For an accurate count, see getLostFollowersCount().
+     */
+    getLostFollowers(): FollowRelation[] {
+        return this.blockResults
+            .map(b => b.lostFollowers)
+            .filter(l => Array.isArray(l))
+            .flat() as FollowRelation[];
+    }
+
+    /**
+     * Returns the number of outward follow relations that were lost due to new or updated blocks.
+     * An outward follow relation is a local user who follows a remote user.
+     * Returns undefined if the instance does not track this info.
+     */
+    getLostFollowsCount(): number | undefined {
+        if (!this.tracksFollows) {
+            return undefined;
+        }
+
+        return this.blockResults
+            .map(b =>
+                Array.isArray(b.lostFollows)
+                    ? b.lostFollows.length
+                    : b.lostFollows ?? 0
+            )
+            .reduce((sum, num) => sum + num, 0);
+    }
+
+    /**
+     * Returns the number of inward follow relations that were lost due to new or updated blocks.
+     * An inward follow relation is a remote user who follows a local user.
+     * Returns undefined if the instance does not track this info.
+     */
+    getLostFollowersCount(): number | undefined {
+        if (!this.tracksFollowers) {
+            return undefined;
+        }
+
+        return this.blockResults
+            .map(b =>
+                Array.isArray(b.lostFollowers)
+                    ? b.lostFollowers.length
+                    : b.lostFollowers ?? 0
+            )
+            .reduce((sum, num) => sum + num, 0);
+    }
+
+    /**
+     * Attempts to apply the provided block to the instance, returning the result of the operation.
+     * Subclasses should *not* override this, as it contains the statistic tracking logic.
      * @param block Block to apply
      */
     async tryApplyBlock(block: Block): Promise<BlockResult> {
         try {
-            const result = await this.applyBlock(block);
+            let partialResult = await this.applyBlock(block);
 
-            if (result === 'created') {
-                this.stats.createdBlocks.push(block);
+            // Normalize the partial result to be full and well-formed
+            if (typeof(partialResult) === 'string') {
+                partialResult = { block, action: partialResult, lostFollows: 0, lostFollowers: 0 };
 
-            } else if (result === 'updated') {
-                this.stats.updatedBlocks.push(block);
-
-            } else if (result === 'unsupported') {
-                this.stats.failedBlocks.push(block);
+            } else if (!partialResult.block) {
+                partialResult.block = block;
             }
 
+            const result = partialResult as BlockResult;
+            this.blockResults.push(result);
             return result;
 
         } catch (e) {
-            this.stats.failedBlocks.push(block);
+            this.blockResults.push({
+                block,
+                action: 'unsupported',
+                lostFollows: 0,
+                lostFollowers: 0
+            });
 
             throw e;
         }
     }
 
-    protected abstract applyBlock(block: Block): Promise<BlockResult>;
+    /**
+     Attempts to apply the provided block to the instance, returning the result of the operation.
+     Subclasses should override this to provide the implementation.
+     @param block Block to apply
+     */
+    protected abstract applyBlock(block: Block): Promise<PartialBlockResult>;
 
     /**
      * Returns the maximum length of a post that this remote will accept.
@@ -77,38 +200,16 @@ export abstract class Remote {
     commit?(): Promise<void>;
 }
 
-export interface RemoteStats {
-    /**
-     * All new blocks that were created in this session.
-     */
-    createdBlocks: Block[];
-
-    /**
-     * All existing blocks that were updated in this session.
-     */
-    updatedBlocks: Block[];
-
-    /**
-     * All blocks that could not be processed due to an unsupported mode or flag.
-     */
-    failedBlocks: Block[];
-
-    /**
-     * Number of inward follow relations that have been blocked during this session.
-     * An inward follow relation is a remote user who follows a local user.
-     * Undefined if the remote does not track this information.
-     */
-    lostFollowers?: number;
-
-    /**
-     * Number of outward follow relations that have been blocked during this session.
-     * An outward follow relation is a local user who follows a remote user.
-     * Undefined if the remote does not track this information.
-     */
-    lostFollows?: number;
-}
-
 export interface RemoteSoftware {
     name: string;
     version: string;
 }
+
+/**
+ * Utility type to reduce verbose code in remote implementations.
+ * Implementations can return any of these forms:
+ * * A full `BlockResult` object - it will be used as-is.
+ * * A `BlockResult` without the `block` property - it will be added automatically.
+ * * A `BlockAction` - it will be wrapped into a `BlockResult` with zero lost relations.
+ */
+export type PartialBlockResult = SemiPartial<BlockResult, 'block'> | BlockAction;

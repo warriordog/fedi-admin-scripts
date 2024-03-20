@@ -1,14 +1,18 @@
-import {Remote, RemoteSoftware} from "../Remote.js";
+import {PartialBlockResult, Remote, RemoteSoftware} from "../Remote.js";
 import {SharkeyClient} from "../../../common/api/sharkey/SharkeyClient.js";
 import {Config} from "../../../../config/importBlocklist.js";
 import {Block} from "../../domain/block.js";
-import {BlockResult} from "../../domain/blockResult.js";
 import {toYMD} from "../../../common/util/dateUtils.js";
 import {Post} from "../../domain/post.js";
 import {SharkeyInstance} from "../../../common/api/sharkey/sharkeyInstance.js";
 import {SharkeyAdminMeta} from "../../../common/api/sharkey/sharkeyAdminMeta.js";
 
 export class SharkeyRemote extends Remote {
+    readonly tracksFollowers = true;
+    readonly tracksFollows = true;
+    readonly seversFollowers = false;
+    readonly seversFollows = false;
+
     private readonly client: SharkeyClient
 
     constructor(
@@ -18,11 +22,9 @@ export class SharkeyRemote extends Remote {
     ) {
         super();
         this.client = new SharkeyClient(host, token);
-        this.stats.lostFollows = 0;
-        this.stats.lostFollowers = 0;
     }
 
-    async applyBlock(block: Block): Promise<BlockResult> {
+    async applyBlock(block: Block): Promise<PartialBlockResult> {
         // Sharkey can't unlist without a full suspension
         if (block.limitFederation === 'unlist') {
             return 'unsupported';
@@ -67,6 +69,7 @@ export class SharkeyRemote extends Remote {
             (isDisconnect === doDisconnect|| !instance);
 
         // Apply everything
+        // TODO call sharkey API in parallel
         if (!this.config.dryRun) {
             if (doSuspend) {
                 await this.updateMeta({
@@ -121,18 +124,14 @@ export class SharkeyRemote extends Remote {
             }
         }
 
-        // Update relation stats, since they aren't handled by the base class
-        if (instance) {
-            if (doSuspend || doDisconnect) {
-                // These are flipped on purpose - sharkey uses opposite terminology
-                this.stats.lostFollowers = (this.stats.lostFollowers ?? 0) + instance.followingCount;
-            }
-            if (doSuspend) {
-                this.stats.lostFollows = (this.stats.lostFollows ?? 0) + instance.followersCount;
-            }
-        }
-
-        return isNewBlock ? 'created' : 'updated';
+        // Compute final block results;
+        // "followingCount" and "followersCount" are intentionally flipped because sharkey uses opposite terminology.
+        const lostFollowers = instance && (doSuspend || doDisconnect)
+            ? instance.followingCount : 0;
+        const lostFollows = instance && (doSuspend)
+            ? instance.followersCount : 0;
+        const action = isNewBlock ? 'created' : 'updated';
+        return { action, lostFollows, lostFollowers };
     }
 
     async getMaxPostLength(): Promise<number> {

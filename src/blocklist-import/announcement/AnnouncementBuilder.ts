@@ -12,9 +12,10 @@ export class AnnouncementBuilder {
         const body: AnnouncementBody = [];
 
         // Get all included blocks (will be filtered down again).
-        let allBlocks = remote.stats.createdBlocks;
+        let allBlocks = remote.getCreatedBlocks().map(b => b.block);
         if (this.config.includeUpdatedBlocks) {
-            allBlocks = allBlocks.concat(remote.stats.updatedBlocks);
+            const updatedBlocks = remote.getUpdatedBlocks().map(b => b.block);
+            allBlocks = allBlocks.concat(updatedBlocks);
         }
 
         // We either group by type, or put all blocks in one group.
@@ -42,7 +43,7 @@ export class AnnouncementBuilder {
         this.addSuspendedGroup(body, allBlocks);
         this.addSilencedGroup(body, allBlocks);
         this.addUnlistedGroup(body, allBlocks);
-        this.addDisconnectedGroup(body, allBlocks);
+        this.addGhostedGroup(body, allBlocks);
         this.addSetNSFWGroup(body, allBlocks);
         this.addRejectMediaGroup(body, allBlocks);
         this.addRejectAvatarsGroup(body, allBlocks);
@@ -62,7 +63,7 @@ export class AnnouncementBuilder {
         this.addGroup(body, blocks, 'have been unlisted (removed from global timeline)', b => b.limitFederation === 'unlist');
     }
 
-    private addDisconnectedGroup(body: AnnouncementSection[], blocks: Block[]): void {
+    private addGhostedGroup(body: AnnouncementSection[], blocks: Block[]): void {
         this.addGroup(body, blocks, 'have been ghosted (will no longer receive posts from this instance)', b => b.limitFederation === 'ghost');
     }
 

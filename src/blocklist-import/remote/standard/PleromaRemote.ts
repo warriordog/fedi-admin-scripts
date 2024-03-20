@@ -1,8 +1,7 @@
-import {Remote, RemoteSoftware} from "../Remote.js";
+import {PartialBlockResult, Remote, RemoteSoftware} from "../Remote.js";
 import {PleromaClient} from "../../../common/api/pleroma/PleromaClient.js";
 import {Config} from "../../../../config/importBlocklist.js";
 import {Block} from "../../domain/block.js";
-import {BlockResult} from "../../domain/blockResult.js";
 import {PleromaConfig, PleromaConfigSection, Tuple} from "../../../common/api/pleroma/PleromaConfig.js";
 import {Post} from "../../domain/post.js";
 import {PleromaInstance} from "../../../common/api/pleroma/pleromaInstance.js";
@@ -12,6 +11,12 @@ import {PleromaInstance} from "../../../common/api/pleroma/pleromaInstance.js";
  * Supports Akkoma's "background_removal" action for mrf_simple.
  */
 export class PleromaRemote extends Remote {
+    readonly tracksFollowers = false;
+    readonly tracksFollows = false;
+    readonly seversFollowers = false;
+    readonly seversFollows = false;
+
+
     private readonly client: PleromaClient;
 
     constructor(
@@ -23,7 +28,7 @@ export class PleromaRemote extends Remote {
         this.client = new PleromaClient(host, token);
     }
 
-    async applyBlock(block: Block): Promise<BlockResult> {
+    async applyBlock(block: Block): Promise<PartialBlockResult> {
         // Pleroma can't disconnect without a full suspension
         if (block.limitFederation === 'ghost') {
             return 'unsupported';

@@ -1,4 +1,4 @@
-import {AnnouncementConfig, Config, defaultAnnouncementConfig, SourceConfig} from "./domain/config.js";
+import {Config, SourceConfig} from "./domain/config.js";
 import {Remote} from "./remote/Remote.js";
 import {Block, FederationLimit} from "./domain/block.js";
 import {readSource} from "./source/source.js";
@@ -6,6 +6,7 @@ import {AnnouncementBuilder} from "./announcement/AnnouncementBuilder.js";
 import {renderAnnouncement} from "./announcement/renderAnnouncement.js";
 import {Post} from "./domain/post.js";
 import {createRemote} from "./remote/createRemote.js";
+import {BlockAction, FollowRelation} from "./domain/blockResult.js";
 
 export async function importBlocklist(config: Config): Promise<void> {
     if (config.sources.length < 1) {
@@ -22,7 +23,7 @@ export async function importBlocklist(config: Config): Promise<void> {
         console.warn('Ignoring retractBlocks - retraction is not implemented.');
     }
 
-    if (typeof(config.generateAnnouncements) === 'object' && config.generateAnnouncements.publishPosts) {
+    if (typeof(config.announcements) === 'object' && config.announcements.publishPosts) {
         console.warn('Ignoring publishPosts - publish is not implemented');
     }
 
@@ -40,27 +41,32 @@ export async function importBlocklist(config: Config): Promise<void> {
 
     // Load blocklists
     const blocks = await loadBlocks(config.sources);
-    if (blocks.length > 0)
-        console.info(`Loaded ${blocks.length} unique block(s) from ${config.sources.length} source list(s).`);
-    else
+    if (blocks.length > 0) {
+        const blockPlural = blocks.length === 1 ? '' : 's';
+        const listPlural = config.sources.length === 1 ? '' : 's';
+        console.info(`Loaded ${blocks.length} unique block${blockPlural} from ${config.sources.length} source list${listPlural}.`);
+
+    } else {
         console.warn('No blocks were loaded - please check the script config and source lists.');
+    }
     console.info('');
 
     // Do the import
-    await importBlocksToRemotes(blocks, remotes);
+    await importBlocksToRemotes(config, remotes, blocks);
 
     // Create announcement posts
-    await generateAnnouncements(remotes, config);
+    await generateAnnouncements(config, remotes);
 
     // Print results
-    printStats(remotes);
-    printWarnings(remotes, config);
+    printStats(config, remotes);
+    printWarnings(config, remotes);
 }
 
 async function loadBlocks(sources: SourceConfig[]): Promise<Block[]> {
     const uniqueBlocks = new Map<string, Block>();
 
     for (const source of sources) {
+        // TODO read sources in parallel
         const sourceBlocks = await readSource(source)
 
         for (const block of sourceBlocks) {
@@ -99,13 +105,14 @@ function mergeLimits(first: FederationLimit | undefined, second: FederationLimit
     return undefined;
 }
 
-async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promise<void> {
+async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: Block[]): Promise<void> {
     console.info('#################################################');
     console.info('#              Applying all blocks              #');
     console.info('#################################################');
     console.info();
 
     console.info('Connecting to remote instances:');
+    // TODO initialize remotes in parallel
     for (const remote of remotes) {
         if (remote.initialize) {
             await remote.initialize();
@@ -131,21 +138,22 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
             continue;
         }
 
+        // TODO apply blocks in parallel
         for (const remote of remotes) {
             try {
-                const result = await remote.tryApplyBlock(block);
+                const { action, lostFollows, lostFollowers } = await remote.tryApplyBlock(block);
 
-                if (result === 'created') {
-                    console.info(`  created block on ${remote.host}.`);
+                const actionMessage = getBlockActionMessage(action, remote.host);
+                const lossMessage = getBlockLossMessage(remote, lostFollows, lostFollowers);
 
-                } else if (result === 'updated') {
-                    console.info(`  updated block on ${remote.host}.`);
+                if (lossMessage)
+                    console.info(`  ${actionMessage} and ${lossMessage}.`);
+                else
+                    console.info(`  ${actionMessage}.`);
 
-                } else if (result === 'unsupported') {
-                    console.info(`  skipped ${remote.host} - does not support this block.`);
-
-                } else {
-                    console.info(`  skipped ${remote.host} - already blocks this domain.`);
+                if (config.printLostFollows) {
+                    printLostRelations(remote.tracksFollows, remote.seversFollows, 'outward', lostFollows);
+                    printLostRelations(remote.tracksFollowers, remote.seversFollowers, 'inward', lostFollowers);
                 }
             } catch (e) {
                 console.error(`  failed ${remote.host} - an error was thrown:`, e);
@@ -158,6 +166,7 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
     console.info('Done; all blocks have been processed.');
     console.info();
 
+    // TODO save changes in parallel
     if (remotes.some(r => r.commit)) {
         console.info('Saving final changes:');
         for (const remote of remotes) {
@@ -197,10 +206,73 @@ function concatBlockActions(actions: string[]): string {
     return `${first}, and ${actions.at(-1)}`;
 }
 
-async function generateAnnouncements(remotes: Remote[], config: Config): Promise<void> {
-    // Normalize config and bail if disabled.
-    const announcementConfig = readAnnouncementConfig(config);
-    if (!announcementConfig.enabled) {
+function getBlockActionMessage(action: BlockAction, host: string): string {
+    if (action === 'created') {
+        return `Created block on ${host}`;
+
+    } else if (action === 'updated') {
+        return `Updated block on ${host}`;
+
+    } else if (action === 'unsupported') {
+        return `Skipped ${host} - does not support this block`;
+
+    } else if (action === 'skipped') {
+        return `Skipped ${host} - already blocks this domain`;
+
+    } else {
+        throw new Error(`Unknown BlockAction: ${action}`);
+    }
+}
+
+function getBlockLossMessage(remote: Remote, lostFollows: number | FollowRelation[] | undefined, lostFollowers: number | FollowRelation[] | undefined): string | undefined {
+    // Flatten these down into number | undefined.
+    // This allows us to just test for truthiness.
+    if (Array.isArray(lostFollows))
+        lostFollows = lostFollows.length;
+    if (Array.isArray(lostFollowers))
+        lostFollowers = lostFollowers.length;
+
+    // These can potentially be different.
+    const followsLossType = remote.seversFollows
+        ? 'severed'
+        : 'paused';
+    const followersLossType = remote.seversFollowers
+        ? 'severed'
+        : 'paused';
+
+    const followsPlural = lostFollows === 1 ? '' : 's';
+    const followersPlural = lostFollowers === 1 ? '' : 's';
+
+    if (lostFollows && lostFollowers) {
+        return (followsLossType === followersLossType)
+            ? `${followsLossType} ${lostFollows} outward and ${lostFollowers} inward follow relationships`
+            : `${followsLossType} ${lostFollows} outward follow relationship${followsPlural} + ${followersLossType} ${lostFollowers} inward follow relationship${followersPlural}`
+    }
+
+    if (lostFollows) {
+        return `${followsLossType} ${lostFollows} outward follow relationship${followsPlural}`;
+    }
+
+    if (lostFollowers) {
+        return `${followersLossType} ${lostFollowers} inward follow relationship${followersPlural}`;
+    }
+
+    // It's possible (even likely) for there to be no loss at all.
+    return undefined;
+}
+
+function printLostRelations(isTracked: boolean, isSevered: boolean, direction: string, lostRelations: number | FollowRelation[] | undefined) {
+    if (isTracked && Array.isArray(lostRelations)) {
+        const followerLossType = isSevered ? 'Severed' : 'Paused';
+
+        for (const { follower, followee } of lostRelations) {
+            console.info(`    ${followerLossType} ${direction} follow relationship from ${follower} to ${followee}.`);
+        }
+    }
+}
+
+async function generateAnnouncements(config: Config, remotes: Remote[]): Promise<void> {
+    if (!config.announcements.enabled) {
         return;
     }
 
@@ -209,19 +281,20 @@ async function generateAnnouncements(remotes: Remote[], config: Config): Promise
     console.info('#################################################');
     console.info();
 
-    if (announcementConfig.publishPosts) {
-        console.info('You have enabled "publishPosts", so announcements will be automatically posted using the linked account(s).');
+    if (config.announcements.publishPosts) {
+        const plural = remotes.length === 1 ? '' : 's';
+        console.info(`You have enabled "publishPosts", so announcements will be automatically posted using the linked account${plural}.`);
     } else {
         console.info('You have disabled "publishPosts", so announcements will be printed to the console in Markdown format.');
         console.info('Each announcement will be broken down into individual posts to fit within the character limit.');
     }
 
-    const builder = new AnnouncementBuilder(announcementConfig);
+    const builder = new AnnouncementBuilder(config.announcements);
     for (const remote of remotes) {
         console.info();
 
         // Don't make an announcement if nothing was blocked
-        if (remote.stats.createdBlocks.length === 0 && remote.stats.updatedBlocks.length === 0) {
+        if (remote.getCreatedBlocks().length === 0 && remote.getUpdatedBlocks().length === 0) {
             console.info(`Skipping announcement thread for ${remote.host}; no blocks were changed so there is nothing to announce.`);
             continue;
         }
@@ -250,18 +323,6 @@ async function generateAnnouncements(remotes: Remote[], config: Config): Promise
     console.info('');
 }
 
-function readAnnouncementConfig(fullConfig: Config): AnnouncementConfig {
-    let config: Partial<AnnouncementConfig>;
-
-    if (typeof(fullConfig.generateAnnouncements) === 'object') {
-        config = fullConfig.generateAnnouncements;
-    } else {
-        config = { enabled: fullConfig.generateAnnouncements === true };
-    }
-
-    return Object.assign(defaultAnnouncementConfig, config);
-}
-
 function printPost(post: Post, prefix?: string, index: number = 0): void {
     const subPrefix = prefix
         ? `${prefix}.${index + 1}`
@@ -279,7 +340,7 @@ function printPost(post: Post, prefix?: string, index: number = 0): void {
     }
 }
 
-function printStats(remotes: Remote[]): void {
+function printStats(config: Config, remotes: Remote[]): void {
     console.info('#################################################');
     console.info('#                Import complete                #');
     console.info('#################################################');
@@ -287,39 +348,88 @@ function printStats(remotes: Remote[]): void {
 
     // Count the number of characters per column in the output, for pretty-printing.
     const remoteHostWidth = remotes.reduce((max, remote) => Math.max(max, remote.host.length), 0);
-    const createdBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.createdBlocks.length.toString().length), 0);
-    const updatedBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.updatedBlocks.length.toString().length), 0);
-    const lostFollowsWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.lostFollows?.toString().length ?? 1), 0);
-    const lostFollowersWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.lostFollowers?.toString().length ?? 1), 0);
+    const createdBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.getCreatedBlocks().length.toString().length), 0);
+    const updatedBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.getUpdatedBlocks().length.toString().length), 0);
+    const lostFollowsWidth = remotes.reduce((max, remote) => Math.max(max, remote.getLostFollowsCount()?.toString().length ?? 1), 0);
+    const lostFollowersWidth = remotes.reduce((max, remote) => Math.max(max, remote.getLostFollowersCount()?.toString().length ?? 1), 0);
 
     console.info('Final results for each remote:')
     for (const remote of remotes) {
+        const createdBlocksCount = remote.getCreatedBlocks().length;
+        const updateBlocksCount = remote.getUpdatedBlocks().length;
+        const lostFollowsCount = remote.getLostFollowsCount();
+        const lostFollowersCount = remote.getLostFollowersCount();
+
         const remoteHost = `${remote.host}:`.padEnd(remoteHostWidth + 1, ' ');
-        const createdBlocks = remote.stats.createdBlocks.length.toString().padStart(createdBlocksWidth);
-        const updatedBlocks = remote.stats.updatedBlocks.length.toString().padStart(updatedBlocksWidth);
-        const lostFollows = (remote.stats.lostFollows?.toString() ?? '?' ).padStart(lostFollowsWidth);
-        const lostFollowers = (remote.stats.lostFollowers?.toString() ?? '?').padStart(lostFollowersWidth);
+        const createdBlocks = createdBlocksCount.toString().padStart(createdBlocksWidth);
+        const updatedBlocks = updateBlocksCount.toString().padStart(updatedBlocksWidth);
+        const lostFollows = (lostFollowsCount?.toString() ?? '?' ).padStart(lostFollowsWidth);
+        const lostFollowers = (lostFollowersCount?.toString() ?? '?').padStart(lostFollowersWidth);
 
-        let statMessage = remote.stats.lostFollows !== undefined || remote.stats.lostFollowers !== undefined
-            ? `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated block(s), losing ${lostFollows} outward and ${lostFollowers} inward connection(s).`
-            : `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated block(s).`;
+        let statMessage = lostFollowsCount !== undefined || lostFollowersCount !== undefined
+            ? `  ${remoteHost} Applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward follow relations.`
+            : `  ${remoteHost} Applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`;
 
-        if (remote.stats.failedBlocks.length > 0) {
-            statMessage += ` ${remote.stats.failedBlocks.length} block(s) could not be applied due to errors or unsupported flags.`;
+        const unsupportedBlocksCount = remote.getUnsupportedBlocks().length;
+        const unsupportedPlural = unsupportedBlocksCount === 1 ? '' : 's';
+        if (unsupportedBlocksCount > 0) {
+            statMessage += ` ${unsupportedBlocksCount} block${unsupportedPlural} could not be applied due to errors or unsupported flags.`;
         }
 
         console.info(statMessage);
+
+        // Lost follows, if enabled, have to go on a separate line because they will print out full details.
+        if (config.printLostFollows) {
+            const lossPerHost = remote.getCreatedBlocks()
+                .concat(remote.getUpdatedBlocks())
+                .map(({ block: { host }, lostFollows, lostFollowers}) => {
+                    let totalLoss = 0;
+
+                    if (lostFollows) {
+                        totalLoss += Array.isArray(lostFollows)
+                            ? lostFollows.length
+                            : lostFollows
+                    }
+
+                    if (lostFollowers) {
+                        totalLoss += Array.isArray(lostFollowers)
+                            ? lostFollowers.length
+                            : lostFollowers
+                    }
+
+                    return { host, totalLoss };
+                })
+                .filter(br => br.totalLoss > 0)
+                .sort((a, b) => a.host.localeCompare(b.host));
+
+            const lossWidth = lossPerHost.reduce((max, {totalLoss}) => Math.max(max, totalLoss.toString().length), 0);
+
+            const indent = ''.padStart(remoteHostWidth + 6);
+            const action = remote.seversFollows || remote.seversFollowers ? 'Severed' : 'Paused';
+
+            for (const entry of lossPerHost) {
+                const loss = entry.totalLoss.toString().padStart(lossWidth);
+                const plural = entry.totalLoss === 1 ? '' : 's';
+
+                console.info(`${indent}${action} ${loss} follow relation${plural} with ${entry.host}.`);
+            }
+        }
     }
 
     console.info('');
 }
 
-function printWarnings(remotes: Remote[], config: Config): void {
+function printWarnings(config: Config, remotes: Remote[]): void {
     const warnings: string[] = [];
 
     // Print a warning if any blocks were unsupported
-    if (remotes.some(r => r.stats.failedBlocks.length > 0)) {
+    if (remotes.some(r => r.getUnsupportedBlocks().length > 0)) {
         warnings.push('Some blocks could not be applied to all instances. See the above logs for details.');
+    }
+
+    // Print a warning if any follows were lost
+    if (remotes.some(r => (r.getLostFollowsCount() ?? 0 > 0) || (r.getLostFollowersCount() ?? 0 > 0))) {
+        warnings.push('Some remotes have lost follow relations. See the above logs for details.')
     }
 
     // Print a warning if this was a dry run
