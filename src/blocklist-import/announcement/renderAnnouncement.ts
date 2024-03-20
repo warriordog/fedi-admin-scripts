@@ -85,6 +85,8 @@ export function renderAnnouncement(announcement: Announcement, maxPostLength: nu
     return rootPost;
 }
 
+// TODO find out why we sometimes end up with an extra, empty reply
+
 function trimPost(post: Post): void {
     post.text = post.text.trim();
 

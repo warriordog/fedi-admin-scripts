@@ -1,5 +1,5 @@
 import {AnnouncementConfig} from "../../../config/importBlocklist.js";
-import {Remote} from "../remote/remote.js";
+import {Remote} from "../remote/Remote.js";
 import {Announcement, AnnouncementBody, AnnouncementSection} from "./announcement.js";
 import {Block} from "../domain/block.js";
 
@@ -122,7 +122,7 @@ export class AnnouncementBuilder {
         // Serialize into list elements
         return blocks.map(b => {
             if (this.config.includeBlockReason && b.publicReason)
-                return `- \`${b.host}\` for ${b.publicReason}`;
+                return `- \`${b.host}\` for "${b.publicReason}"`;
 
             else
                 return `- \`${b.host}\``;

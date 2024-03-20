@@ -1,36 +1,31 @@
-import {PleromaClient} from "../../common/api/pleroma/PleromaClient.js";
-import {Remote} from "./remote.js";
-import {Block} from "../domain/block.js";
-import {BlockResult} from "../domain/blockResult.js";
-import {PleromaConfig, PleromaConfigSection, Tuple} from "../../common/api/pleroma/PleromaConfig.js";
-import {Config} from "../domain/config.js";
-import {Post} from "../domain/post.js";
+import {Remote, RemoteSoftware} from "../Remote.js";
+import {PleromaClient} from "../../../common/api/pleroma/PleromaClient.js";
+import {Config} from "../../../../config/importBlocklist.js";
+import {Block} from "../../domain/block.js";
+import {BlockResult} from "../../domain/blockResult.js";
+import {PleromaConfig, PleromaConfigSection, Tuple} from "../../../common/api/pleroma/PleromaConfig.js";
+import {Post} from "../../domain/post.js";
+import {PleromaInstance} from "../../../common/api/pleroma/pleromaInstance.js";
 
 /**
  * Applies blocks to Pleroma / Akkoma instances.
  * Supports Akkoma's "background_removal" action for mrf_simple.
  */
-export class PleromaRemote implements Remote {
+export class PleromaRemote extends Remote {
     private readonly client: PleromaClient;
-
-    public readonly stats = {
-        createdBlocks: [] as Block[],
-        updatedBlocks: [] as Block[],
-        unsupportedBlocks: [] as Block[]
-    };
 
     constructor(
         private readonly config: Config,
         public readonly host: string,
         token: string
     ) {
+        super();
         this.client = new PleromaClient(host, token);
     }
 
-    async tryApplyBlock(block: Block): Promise<BlockResult> {
+    async applyBlock(block: Block): Promise<BlockResult> {
         // Pleroma can't disconnect without a full suspension
         if (block.limitFederation === 'ghost') {
-            this.stats.unsupportedBlocks.push(block);
             return 'unsupported';
         }
 
@@ -40,7 +35,7 @@ export class PleromaRemote implements Remote {
         const isUnlist = block.limitFederation === 'suspend' || block.limitFederation === 'silence' || block.limitFederation === 'unlist';
 
         // Read config
-        const instanceConfig = await this.client.readConfig();
+        const instanceConfig = await this.getConfig();
         const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as MRFSection;
         const mrfSection = findConfigSection(instanceConfig, ':pleroma', ':mrf') as MRFSection;
 
@@ -155,7 +150,7 @@ export class PleromaRemote implements Remote {
 
         // Save changes
         if (!this.config.dryRun) {
-            await this.client.saveConfig({
+            await this.updateConfig({
                 configs: [
                     mrfSimpleSection,
                     mrfSection
@@ -164,23 +159,34 @@ export class PleromaRemote implements Remote {
             });
         }
 
-        // Update stats
-        if (hasExistingBlock) {
-            this.stats.updatedBlocks.push(block);
-        } else {
-            this.stats.createdBlocks.push(block);
-        }
-
         return hasExistingBlock ? 'updated' : 'created';
     }
 
     async getMaxPostLength(): Promise<number> {
-        const config = await this.client.getInstance();
+        const config = await this.getInstance();
         return config.max_toot_chars;
     }
 
     async publishPost(post: Post): Promise<string> {
+        // TODO implement post publish
         return '(error: not implemented)';
+    }
+
+    async getSoftware(): Promise<RemoteSoftware> {
+        const instance = await this.getInstance();
+        return parseVersion(instance.version);
+    }
+
+    async getConfig(): Promise<PleromaConfig> {
+        return await this.client.getConfig();
+    }
+
+    async updateConfig(config: PleromaConfig): Promise<void> {
+        await this.client.updateConfig(config);
+    }
+
+    async getInstance(): Promise<PleromaInstance> {
+        return await this.client.getInstance();
     }
 }
 
@@ -224,4 +230,20 @@ function getTuple(config: MRFSection, key: string): Tuple<string>[] {
     config.db?.push(key);
 
     return tupleData;
+}
+
+function parseVersion(version: string): RemoteSoftware {
+    // If it doesn't match, then we have no clue.
+    // Pass the version field as-is.
+    const match = version.match(/([\d.]+)(?: \(compatible; (\w+) ([\d.]+)\))?/);
+    if (!match)
+        return { name: 'unknown', version: version };
+
+    // If extra fields show up, then those are added by a fork and should be used instead.
+    const [_, pleromaVersion, forkName, forkVersion ] = match;
+    if (forkName && forkVersion)
+        return { name: forkName, version: forkVersion };
+
+    // Otherwise, it's just regular Pleroma.
+    return { name: 'Pleroma', version: pleromaVersion };
 }

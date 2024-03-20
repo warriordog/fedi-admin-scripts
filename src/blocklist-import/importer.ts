@@ -1,11 +1,11 @@
 import {AnnouncementConfig, Config, defaultAnnouncementConfig, SourceConfig} from "./domain/config.js";
-import {createRemote, Remote} from "./remote/remote.js";
+import {Remote} from "./remote/Remote.js";
 import {Block, FederationLimit} from "./domain/block.js";
 import {readSource} from "./source/source.js";
-import {SharkeyRemote} from "./remote/SharkeyRemote.js";
 import {AnnouncementBuilder} from "./announcement/AnnouncementBuilder.js";
 import {renderAnnouncement} from "./announcement/renderAnnouncement.js";
 import {Post} from "./domain/post.js";
+import {createRemote} from "./remote/createRemote.js";
 
 export async function importBlocklist(config: Config): Promise<void> {
     if (config.sources.length < 1) {
@@ -28,6 +28,10 @@ export async function importBlocklist(config: Config): Promise<void> {
 
     if (config.dryRun) {
         console.info('Dry run requested - blocks will not be saved.');
+    }
+
+    if (config.fastMode) {
+        console.warn('warning: Fast Mode is enabled. This will greatly speed up the process, but the remote instances will be in an inconsistent state until the script finishes. Do not attempt to manually adjust any remote blocks while the script is running!');
     }
 
     // Construct remote clients
@@ -100,10 +104,20 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
     console.info('#              Applying all blocks              #');
     console.info('#################################################');
     console.info();
-    console.info(`Running matrix of ${blocks.length} blocks across ${remotes.length} remotes.`);
-    if (remotes.some(r => r instanceof SharkeyRemote)) {
-        console.info('This may take a while, please be patient.')   
+
+    console.info('Connecting to remote instances:');
+    for (const remote of remotes) {
+        if (remote.initialize) {
+            await remote.initialize();
+        }
+
+        const { name, version } = await remote.getSoftware();
+        console.info(`  ${remote.host}: connected to ${name} version ${version}.`);
     }
+    console.info();
+
+    console.info(`Running matrix of ${blocks.length} blocks across ${remotes.length} remotes.`);
+    console.info('This may take a while, please be patient.');
     console.info();
 
     for (const block of blocks) {
@@ -139,6 +153,21 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
         }
 
         console.info('');
+    }
+
+    console.info('Done; all blocks have been processed.');
+    console.info();
+
+    if (remotes.some(r => r.commit)) {
+        console.info('Saving final changes:');
+        for (const remote of remotes) {
+            if (remote.commit) {
+                await remote.commit();
+            }
+
+            console.info(`  ${remote.host}: all changes saved.`);
+        }
+        console.info();
     }
 }
 
@@ -272,11 +301,11 @@ function printStats(remotes: Remote[]): void {
         const lostFollowers = (remote.stats.lostFollowers?.toString() ?? '?').padStart(lostFollowersWidth);
 
         let statMessage = remote.stats.lostFollows !== undefined || remote.stats.lostFollowers !== undefined
-            ? `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward connections.`
-            : `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`;
+            ? `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated block(s), losing ${lostFollows} outward and ${lostFollowers} inward connection(s).`
+            : `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated block(s).`;
 
-        if (remote.stats.unsupportedBlocks.length > 0) {
-            statMessage += ` ${remote.stats.unsupportedBlocks.length} blocks were unsupported and not applied.`;
+        if (remote.stats.failedBlocks.length > 0) {
+            statMessage += ` ${remote.stats.failedBlocks.length} block(s) could not be applied due to errors or unsupported flags.`;
         }
 
         console.info(statMessage);
@@ -289,7 +318,7 @@ function printWarnings(remotes: Remote[], config: Config): void {
     const warnings: string[] = [];
 
     // Print a warning if any blocks were unsupported
-    if (remotes.some(r => r.stats.unsupportedBlocks.length > 0)) {
+    if (remotes.some(r => r.stats.failedBlocks.length > 0)) {
         warnings.push('Some blocks could not be applied to all instances. See the above logs for details.');
     }
 

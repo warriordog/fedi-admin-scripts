@@ -1,36 +1,30 @@
-import {Remote} from "./remote.js";
-import {Config} from "../domain/config.js";
-import {SharkeyClient} from "../../common/api/sharkey/SharkeyClient.js";
-import {Block} from "../domain/block.js";
-import {BlockResult} from "../domain/blockResult.js";
-import {SharkeyInstance} from "../../common/api/sharkey/sharkeyInstance.js";
-import {SharkeyAdminMeta} from "../../common/api/sharkey/sharkeyAdminMeta.js";
-import {toYMD} from "../../common/util/dateUtils.js";
-import {Post} from "../domain/post.js";
+import {Remote, RemoteSoftware} from "../Remote.js";
+import {SharkeyClient} from "../../../common/api/sharkey/SharkeyClient.js";
+import {Config} from "../../../../config/importBlocklist.js";
+import {Block} from "../../domain/block.js";
+import {BlockResult} from "../../domain/blockResult.js";
+import {toYMD} from "../../../common/util/dateUtils.js";
+import {Post} from "../../domain/post.js";
+import {SharkeyInstance} from "../../../common/api/sharkey/sharkeyInstance.js";
+import {SharkeyAdminMeta} from "../../../common/api/sharkey/sharkeyAdminMeta.js";
 
-export class SharkeyRemote implements Remote {
-    private readonly client: SharkeyClient;
-
-    public readonly stats = {
-        createdBlocks: [] as Block[],
-        updatedBlocks: [] as Block[],
-        unsupportedBlocks: [] as Block[],
-        lostFollows: 0,
-        lostFollowers: 0
-    };
+export class SharkeyRemote extends Remote {
+    private readonly client: SharkeyClient
 
     constructor(
         private readonly config: Config,
         public readonly host: string,
         token: string
     ) {
+        super();
         this.client = new SharkeyClient(host, token);
+        this.stats.lostFollows = 0;
+        this.stats.lostFollowers = 0;
     }
 
-    async tryApplyBlock(block: Block): Promise<BlockResult> {
+    async applyBlock(block: Block): Promise<BlockResult> {
         // Sharkey can't unlist without a full suspension
         if (block.limitFederation === 'unlist') {
-            this.stats.unsupportedBlocks.push(block);
             return 'unsupported';
         }
 
@@ -41,7 +35,7 @@ export class SharkeyRemote implements Remote {
 
         // Get current block status
         const instance = await this.client.getInstance(block.host);
-        const meta = await this.client.getAdminMeta();
+        const meta = await this.getMeta();
 
         // Check for changes
         if (isUpToDate(instance, meta, block, isSuspend, isSilence, isDisconnect)) {
@@ -50,7 +44,7 @@ export class SharkeyRemote implements Remote {
 
         // This is all very fucked:
         // 1. some blocks are considered part of local instance metadata, while others are remote.
-        // 2. update-instance and update-meta can only handle one property at a time. You can pass multiple, but only one will save.
+        // 2. update-instance can only handle one property at a time. You can pass multiple, but only one will save.
         // 3. if the remote instance is unknown and offline, then "instance" will be null. we still have to address local instance metadata.
 
         // silence and suspend (block) must be set through meta.
@@ -75,13 +69,13 @@ export class SharkeyRemote implements Remote {
         // Apply everything
         if (!this.config.dryRun) {
             if (doSuspend) {
-                await this.client.updateMeta({
+                await this.updateMeta({
                     blockedHosts: meta.blockedHosts.concat(block.host)
                 });
             }
 
             if (doSilence) {
-                await this.client.updateMeta({
+                await this.updateMeta({
                     silencedHosts: meta.silencedHosts.concat(block.host)
                 });
             }
@@ -127,25 +121,18 @@ export class SharkeyRemote implements Remote {
             }
         }
 
-        // Update stats
-        if (isNewBlock) {
-            this.stats.createdBlocks.push(block);
-        } else {
-            this.stats.updatedBlocks.push(block);
-        }
+        // Update relation stats, since they aren't handled by the base class
         if (instance) {
             if (doSuspend || doDisconnect) {
                 // These are flipped on purpose - sharkey uses opposite terminology
-                this.stats.lostFollowers += instance.followingCount;
+                this.stats.lostFollowers = (this.stats.lostFollowers ?? 0) + instance.followingCount;
             }
             if (doSuspend) {
-                this.stats.lostFollows += instance.followersCount;
+                this.stats.lostFollows = (this.stats.lostFollows ?? 0) + instance.followersCount;
             }
         }
 
-        return isNewBlock
-            ? 'created'
-            : 'updated';
+        return isNewBlock ? 'created' : 'updated';
     }
 
     async getMaxPostLength(): Promise<number> {
@@ -155,6 +142,19 @@ export class SharkeyRemote implements Remote {
 
     async publishPost(post: Post): Promise<string> {
         return '(error: not implemented)';
+    }
+
+    async getSoftware(): Promise<RemoteSoftware> {
+        const meta = await this.getMeta();
+        return { name: 'Sharkey', version: meta.version };
+    }
+
+    async getMeta(): Promise<SharkeyAdminMeta> {
+        return await this.client.getAdminMeta();
+    }
+
+    async updateMeta(meta: Partial<SharkeyAdminMeta>): Promise<void> {
+        await this.client.updateMeta(meta);
     }
 }
 

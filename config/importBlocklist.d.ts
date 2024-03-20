@@ -173,6 +173,3 @@ export type RemoteType = 'sharkey' | 'pleroma' | 'akkoma';
 
 const config: Config;
 export default config;
-
-
-// TODO fast mode

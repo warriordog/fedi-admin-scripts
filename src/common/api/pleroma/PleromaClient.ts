@@ -7,7 +7,7 @@ export class PleromaClient {
         private readonly token: string
     ) {}
 
-    public async readConfig(): Promise<PleromaConfig> {
+    public async getConfig(): Promise<PleromaConfig> {
         const resp = await this.makeGetRequest('/api/v1/pleroma/admin/config');
 
         if (!resp.ok) {
@@ -17,7 +17,7 @@ export class PleromaClient {
         return await resp.json() as PleromaConfig;
     }
 
-    public async saveConfig(config: PleromaConfig): Promise<void> {
+    public async updateConfig(config: PleromaConfig): Promise<void> {
         const resp = await this.makePostRequest('/api/v1/pleroma/admin/config', config);
 
         if (!resp.ok) {
