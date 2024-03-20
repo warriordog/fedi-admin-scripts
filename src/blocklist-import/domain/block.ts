@@ -1,18 +1,19 @@
 export interface Block {
     host: string;
-    reason: string;
-    redact: boolean;
+    source: string;
 
-    suspend: boolean;
-    silence: boolean;
-    unlist: boolean;
-    disconnect: boolean;
+    publicReason?: string;
+    privateReason?: string;
+    redact?: boolean;
 
-    rejectMedia: boolean;
-    rejectAvatars: boolean;
-    rejectBanners: boolean;
-    rejectBackgrounds: boolean;
-    rejectReports: boolean;
+    limitFederation?: FederationLimit;
+    setNSFW?: boolean;
 
-    setNSFW: boolean;
+    rejectMedia?: boolean;
+    rejectAvatars?: boolean;
+    rejectBanners?: boolean;
+    rejectBackgrounds?: boolean;
+    rejectReports?: boolean;
 }
+
+export type FederationLimit = 'suspend' | 'silence' | 'unlist' | 'ghost';

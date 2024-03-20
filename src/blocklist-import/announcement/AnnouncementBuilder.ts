@@ -51,39 +51,39 @@ export class AnnouncementBuilder {
     }
 
     private addSuspendedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been suspended (completely defederated)', b => b.suspend);
+        this.addGroup(body, blocks, 'have been suspended (completely defederated)', b => b.limitFederation === 'suspend');
     }
 
     private addSilencedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been silenced (hidden from all except followers)', b => b.silence);
+        this.addGroup(body, blocks, 'have been silenced (hidden from all except followers)', b => b.limitFederation === 'silence');
     }
 
     private addUnlistedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been unlisted (removed from global timeline)', b => b.unlist);
+        this.addGroup(body, blocks, 'have been unlisted (removed from global timeline)', b => b.limitFederation === 'unlist');
     }
 
     private addDisconnectedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been disconnected (will no longer receive posts from this instance)', b => b.disconnect);
+        this.addGroup(body, blocks, 'have been ghosted (will no longer receive posts from this instance)', b => b.limitFederation === 'ghost');
     }
 
     private addSetNSFWGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been flagged as NSFW (all media will be marked as sensitive)', b => b.setNSFW);
+        this.addGroup(body, blocks, 'have been flagged as NSFW (all media will be marked as sensitive)', b => b.setNSFW === true);
     }
 
     private addRejectMediaGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'now reject media (media attachments will be replaced with a link)', b => b.rejectMedia);
+        this.addGroup(body, blocks, 'now reject media (media attachments will be replaced with a link)', b => b.rejectMedia === true);
     }
 
     private addRejectAvatarsGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'now reject avatars (profile pictures will be removed)', b => b.rejectAvatars);
+        this.addGroup(body, blocks, 'now reject avatars (profile pictures will be removed)', b => b.rejectAvatars === true);
     }
 
     private addRejectBackgroundsGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'now reject backgrounds (profile backgrounds will be removed)', b => b.rejectBackgrounds);
+        this.addGroup(body, blocks, 'now reject backgrounds (profile backgrounds will be removed)', b => b.rejectBackgrounds === true);
     }
 
     private addRejectReportsGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'cannot forward reports (reports from these instances will be ignored)', b => b.rejectReports);
+        this.addGroup(body, blocks, 'cannot forward reports (reports from these instances will be ignored)', b => b.rejectReports === true);
     }
 
     private addGroup(body: AnnouncementSection[], allBlocks: Block[], action: string, filter?: (b: Block) => boolean): void {
@@ -121,8 +121,8 @@ export class AnnouncementBuilder {
 
         // Serialize into list elements
         return blocks.map(b => {
-            if (this.config.includeBlockReason && b.reason)
-                return `- \`${b.host}\` for ${b.reason}`;
+            if (this.config.includeBlockReason && b.publicReason)
+                return `- \`${b.host}\` for ${b.publicReason}`;
 
             else
                 return `- \`${b.host}\``;

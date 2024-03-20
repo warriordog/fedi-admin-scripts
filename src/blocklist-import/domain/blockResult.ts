@@ -1,1 +1,1 @@
-export type BlockResult = 'created' | 'updated' | 'skipped' | 'ignored';
+export type BlockResult = 'created' | 'updated' | 'skipped' | 'unsupported';

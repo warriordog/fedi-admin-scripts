@@ -1,6 +1,6 @@
 import {AnnouncementConfig, Config, defaultAnnouncementConfig, SourceConfig} from "./domain/config.js";
 import {createRemote, Remote} from "./remote/remote.js";
-import {Block} from "./domain/block.js";
+import {Block, FederationLimit} from "./domain/block.js";
 import {readSource} from "./source/source.js";
 import {SharkeyRemote} from "./remote/SharkeyRemote.js";
 import {AnnouncementBuilder} from "./announcement/AnnouncementBuilder.js";
@@ -50,6 +50,49 @@ export async function importBlocklist(config: Config): Promise<void> {
 
     // Print results
     printStats(remotes);
+    printWarnings(remotes, config);
+}
+
+async function loadBlocks(sources: SourceConfig[]): Promise<Block[]> {
+    const uniqueBlocks = new Map<string, Block>();
+
+    for (const source of sources) {
+        const sourceBlocks = await readSource(source)
+
+        for (const block of sourceBlocks) {
+            const duplicateBlock = uniqueBlocks.get(block.host);
+
+            if (duplicateBlock) {
+                console.info(`Merging duplicate block entries for ${block.host}. (found in sources "${block.source}" and "${duplicateBlock.source}")`);
+
+                block.publicReason = `${block.publicReason} | ${duplicateBlock.publicReason}`;
+                block.privateReason = `${block.privateReason} | ${duplicateBlock.privateReason}`;
+                block.redact ||= duplicateBlock.redact;
+                block.limitFederation = mergeLimits(block.limitFederation, duplicateBlock.limitFederation);
+                block.setNSFW ||= duplicateBlock.setNSFW;
+                block.rejectMedia ||= duplicateBlock.rejectMedia;
+                block.rejectAvatars ||= duplicateBlock.rejectAvatars;
+                block.rejectBanners ||= duplicateBlock.rejectBanners;
+                block.rejectBackgrounds ||= duplicateBlock.rejectBackgrounds;
+                block.rejectReports ||= duplicateBlock.rejectReports;
+            }
+
+            uniqueBlocks.set(block.host, block);
+        }
+    }
+
+    return Array.from(uniqueBlocks.values());
+}
+
+function mergeLimits(first: FederationLimit | undefined, second: FederationLimit | undefined): FederationLimit | undefined {
+    // suspend > silence > unlist > disconnect > nothing
+
+    if (first === 'suspend' || second === 'suspend') return 'suspend';
+    if (first === 'silence' || second === 'silence') return 'silence';
+    if (first === 'unlist' || second === 'unlist') return 'unlist';
+    if (first === 'ghost' || second === 'ghost') return 'ghost';
+
+    return undefined;
 }
 
 async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promise<void> {
@@ -68,7 +111,7 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
         if (actions.length > 0) {
             const actionString = concatBlockActions(actions);
             const ending = block.redact ? ' (redacted).' : '.';
-            console.info(`${block.host}: ${actionString} for "${block.reason}"${ending}`);
+            console.info(`${block.host}: ${actionString} for "${block.publicReason}"${ending}`);
         } else {
             console.warn(`${block.host}: no actions defined, block will be skipped.`);
             continue;
@@ -84,7 +127,7 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
                 } else if (result === 'updated') {
                     console.info(`  updated block on ${remote.host}.`);
 
-                } else if (result === 'ignored') {
+                } else if (result === 'unsupported') {
                     console.info(`  skipped ${remote.host} - does not support this block.`);
 
                 } else {
@@ -97,6 +140,32 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
 
         console.info('');
     }
+}
+
+function getBlockActions(block: Block): string[] {
+    const actions: string[] = [];
+    if (block.limitFederation) actions.push(block.limitFederation);
+    if (block.setNSFW) actions.push('set NSFW');
+    if (block.rejectMedia) actions.push('reject media');
+    if (block.rejectAvatars) actions.push('reject avatars');
+    if (block.rejectBanners) actions.push('reject banners');
+    if (block.rejectBackgrounds) actions.push('reject backgrounds');
+    if (block.rejectReports) actions.push('reject reports');
+    return actions;
+}
+
+function concatBlockActions(actions: string[]): string {
+    // A single action.
+    if (actions.length < 2)
+        return actions[0];
+
+    // Two actions: format as "this and that".
+    if (actions.length === 2)
+        return actions.join(' and ');
+
+    // Three+ actions: format as "this, that, and the other".
+    const first = actions.slice(0, -1).join(', ');
+    return `${first}, and ${actions.at(-1)}`;
 }
 
 async function generateAnnouncements(remotes: Remote[], config: Config): Promise<void> {
@@ -117,10 +186,11 @@ async function generateAnnouncements(remotes: Remote[], config: Config): Promise
         console.info('You have disabled "publishPosts", so announcements will be printed to the console in Markdown format.');
         console.info('Each announcement will be broken down into individual posts to fit within the character limit.');
     }
-    console.info();
 
     const builder = new AnnouncementBuilder(announcementConfig);
     for (const remote of remotes) {
+        console.info();
+
         // Don't make an announcement if nothing was blocked
         if (remote.stats.createdBlocks.length === 0 && remote.stats.updatedBlocks.length === 0) {
             console.info(`Skipping announcement thread for ${remote.host}; no blocks were changed so there is nothing to announce.`);
@@ -137,7 +207,9 @@ async function generateAnnouncements(remotes: Remote[], config: Config): Promise
         if (config.dryRun) {
             // Print announcement
             console.info(`Generated announcement thread for ${remote.host}:`);
+            console.info();
             printPost(post);
+            console.info('[End]');
 
         } else {
             // Post announcement
@@ -199,74 +271,38 @@ function printStats(remotes: Remote[]): void {
         const lostFollows = (remote.stats.lostFollows?.toString() ?? '?' ).padStart(lostFollowsWidth);
         const lostFollowers = (remote.stats.lostFollowers?.toString() ?? '?').padStart(lostFollowersWidth);
 
-        if (remote.stats.lostFollows !== undefined || remote.stats.lostFollowers !== undefined) {
-            console.info(`  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward connections.`);
-        } else {
-            console.info(`  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`);
+        let statMessage = remote.stats.lostFollows !== undefined || remote.stats.lostFollowers !== undefined
+            ? `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward connections.`
+            : `  ${remoteHost} applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`;
+
+        if (remote.stats.unsupportedBlocks.length > 0) {
+            statMessage += ` ${remote.stats.unsupportedBlocks.length} blocks were unsupported and not applied.`;
         }
+
+        console.info(statMessage);
     }
+
     console.info('');
 }
 
-// TODO merge suspend, silence, unlist, and disconnect into something like "restrictFederation"
+function printWarnings(remotes: Remote[], config: Config): void {
+    const warnings: string[] = [];
 
-function getBlockActions(block: Block): string[] {
-    const actions = [];
-    if (block.suspend) actions.push('suspend');
-    if (block.silence) actions.push('silence');
-    if (block.unlist) actions.push('unlist');
-    if (block.disconnect) actions.push('disconnect');
-    if (block.rejectMedia) actions.push('reject media');
-    if (block.rejectAvatars) actions.push('reject avatars');
-    if (block.rejectBanners) actions.push('reject banners');
-    if (block.rejectBackgrounds) actions.push('reject backgrounds');
-    if (block.rejectReports) actions.push('reject reports');
-    if (block.setNSFW) actions.push('set NSFW');
-    return actions;
-}
-
-function concatBlockActions(actions: string[]): string {
-    // A single action.
-    if (actions.length < 2)
-        return actions[0];
-
-    // Two actions: format as "this and that".
-    if (actions.length === 2)
-        return actions.join(' and ');
-
-    // Three+ actions: format as "this, that, and the other".
-    const first = actions.slice(0, -1).join(', ');
-    return `${first}, and ${actions.at(-1)}`;
-}
-
-async function loadBlocks(sources: SourceConfig[]): Promise<Block[]> {
-    const uniqueBlocks = new Map<string, Block>();
-
-    for (const source of sources) {
-        const sourceBlocks = await readSource(source)
-
-        for (const block of sourceBlocks) {
-            const duplicateBlock = uniqueBlocks.get(block.host);
-
-            if (duplicateBlock) {
-                console.info(`Merging duplicate block entries for ${block.host}.`);
-                block.reason = `${block.reason} | ${duplicateBlock.reason}`;
-                block.suspend ||= duplicateBlock.suspend;
-                block.silence ||= duplicateBlock.silence;
-                block.unlist ||= duplicateBlock.unlist;
-                block.disconnect ||= duplicateBlock.disconnect;
-                block.rejectMedia ||= duplicateBlock.rejectMedia;
-                block.rejectAvatars ||= duplicateBlock.rejectAvatars;
-                block.rejectBanners ||= duplicateBlock.rejectBanners;
-                block.rejectBackgrounds ||= duplicateBlock.rejectBackgrounds;
-                block.rejectReports ||= duplicateBlock.rejectReports;
-                block.redact ||= duplicateBlock.redact;
-                block.setNSFW ||= duplicateBlock.setNSFW;
-            }
-
-            uniqueBlocks.set(block.host, block);
-        }
+    // Print a warning if any blocks were unsupported
+    if (remotes.some(r => r.stats.unsupportedBlocks.length > 0)) {
+        warnings.push('Some blocks could not be applied to all instances. See the above logs for details.');
     }
 
-    return Array.from(uniqueBlocks.values());
+    // Print a warning if this was a dry run
+    if (config.dryRun) {
+        warnings.push('This was a dry run. Blocks are not actually applied.');
+    }
+
+    if (warnings.length > 0) {
+        for (const warning of warnings) {
+            console.warn(`warning: ${warning}`);
+        }
+
+        console.info('');
+    }
 }

@@ -38,15 +38,18 @@ export interface Remote {
 export interface RemoteStats {
     /**
      * All new blocks that were created in this session.
-     * Each domain is counted only once, even if multiple actions are taken.
      */
     createdBlocks: Block[];
 
     /**
      * All existing blocks that were updated in this session.
-     * Each domain is counted only once, even if multiple actions are taken.
      */
     updatedBlocks: Block[];
+
+    /**
+     * All blocks that could not be processed due to an unsupported mode or flag.
+     */
+    unsupportedBlocks: Block[];
 
     /**
      * Number of inward follow relations that have been blocked during this session.
@@ -62,6 +65,8 @@ export interface RemoteStats {
      */
     lostFollows?: number;
 }
+
+// TODO track errors
 
 export function createRemote({type, host, token}: RemoteConfig, config: Config): Remote {
     if (type === 'sharkey')

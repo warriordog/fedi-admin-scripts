@@ -15,7 +15,8 @@ export class PleromaRemote implements Remote {
 
     public readonly stats = {
         createdBlocks: [] as Block[],
-        updatedBlocks: [] as Block[]
+        updatedBlocks: [] as Block[],
+        unsupportedBlocks: [] as Block[]
     };
 
     constructor(
@@ -27,6 +28,17 @@ export class PleromaRemote implements Remote {
     }
 
     async tryApplyBlock(block: Block): Promise<BlockResult> {
+        // Pleroma can't disconnect without a full suspension
+        if (block.limitFederation === 'ghost') {
+            this.stats.unsupportedBlocks.push(block);
+            return 'unsupported';
+        }
+
+        // map the federation limit into individuals flags
+        const isSuspend = block.limitFederation === 'suspend';
+        const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
+        const isUnlist = block.limitFederation === 'suspend' || block.limitFederation === 'silence' || block.limitFederation === 'unlist';
+
         // Read config
         const instanceConfig = await this.client.readConfig();
         const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as MRFSection;
@@ -71,9 +83,9 @@ export class PleromaRemote implements Remote {
         const hasExistingBlock = isUnlisted || isSuspended || isSilenced || isMediaRejected || isAvatarRejected || isBannerRejected || isBackgroundRejected || isSetNSFW || isReportRejected || isTransparencyExcluded;
 
         // Compute changes
-        const doUnlist = block.unlist && !isUnlisted;
-        const doSuspend = block.suspend && !isSuspended;
-        const doSilence = block.silence && !isSilenced;
+        const doUnlist = isUnlist && !isUnlisted;
+        const doSuspend = isSuspend && !isSuspended;
+        const doSilence = isSilence && !isSilenced;
         const doRejectMedia = block.rejectMedia && !isMediaRejected;
         const doRejectAvatars = block.rejectAvatars && !isAvatarRejected;
         const doRejectBanners = block.rejectBanners && !isBannerRejected;
@@ -90,50 +102,52 @@ export class PleromaRemote implements Remote {
 
         // Add or update all blocks.
         // (this is kinda gross, should refactor)
+        const publicReason = block.publicReason ?? '';
+
         if (doUnlist)
-            federatedTimelineRemoval.push({ tuple: [block.host, block.reason] });
-        else if (isUnlisted && block.reason)
-            existingUnlist.tuple[1] = block.reason;
+            federatedTimelineRemoval.push({ tuple: [block.host, publicReason] });
+        else if (isUnlisted && publicReason)
+            existingUnlist.tuple[1] = publicReason;
 
         if (doSuspend)
-            reject.push({ tuple: [block.host, block.reason] });
-        else if (isSuspended && block.reason)
-            existingSuspend.tuple[1] = block.reason;
+            reject.push({ tuple: [block.host, publicReason] });
+        else if (isSuspended && publicReason)
+            existingSuspend.tuple[1] = publicReason;
 
         if (doSilence)
-            followersOnly.push({ tuple: [block.host, block.reason] });
-        else if (isSilenced && block.reason)
-            existingSilence.tuple[1] = block.reason;
+            followersOnly.push({ tuple: [block.host, publicReason] });
+        else if (isSilenced && publicReason)
+            existingSilence.tuple[1] = publicReason;
 
         if (doRejectMedia)
-            mediaRemoval.push({ tuple: [block.host, block.reason] });
-        else if (isMediaRejected && block.reason)
-            existingRejectMedia.tuple[1] = block.reason;
+            mediaRemoval.push({ tuple: [block.host, publicReason] });
+        else if (isMediaRejected && publicReason)
+            existingRejectMedia.tuple[1] = publicReason;
 
         if (doRejectAvatars)
-            avatarRemoval.push({ tuple: [block.host, block.reason] });
-        else if (isAvatarRejected && block.reason)
-            existingRejectAvatars.tuple[1] = block.reason;
+            avatarRemoval.push({ tuple: [block.host, publicReason] });
+        else if (isAvatarRejected && publicReason)
+            existingRejectAvatars.tuple[1] = publicReason;
 
         if (doRejectBanners)
-            bannerRemoval.push({ tuple: [block.host, block.reason] });
-        else if (isBannerRejected && block.reason)
-            existingRejectBanners.tuple[1] = block.reason;
+            bannerRemoval.push({ tuple: [block.host, publicReason] });
+        else if (isBannerRejected && publicReason)
+            existingRejectBanners.tuple[1] = publicReason;
 
         if (doRejectBackgrounds)
-            backgroundRemoval.push({ tuple: [block.host, block.reason] });
-        else if (isBackgroundRejected && block.reason)
-            existingRejectBackgrounds.tuple[1] = block.reason;
+            backgroundRemoval.push({ tuple: [block.host, publicReason] });
+        else if (isBackgroundRejected && publicReason)
+            existingRejectBackgrounds.tuple[1] = publicReason;
 
         if (doSetNSFW)
-            mediaNSFW.push({ tuple: [block.host, block.reason] });
-        else if (isSetNSFW && block.reason)
-            existingSetNSFW.tuple[1] = block.reason;
+            mediaNSFW.push({ tuple: [block.host, publicReason] });
+        else if (isSetNSFW && publicReason)
+            existingSetNSFW.tuple[1] = publicReason;
 
         if (doRejectReports)
-            reportRemoval.push({ tuple: [block.host, block.reason] });
-        else if (isReportRejected && block.reason)
-            existingRejectReports.tuple[1] = block.reason;
+            reportRemoval.push({ tuple: [block.host, publicReason] });
+        else if (isReportRejected && publicReason)
+            existingRejectReports.tuple[1] = publicReason;
 
         // Don't set a reason for transparency - the semantics are different.
         if (doExcludeTransparency)

@@ -42,8 +42,8 @@ export interface Config {
      *
      * Mastodon-format lists should be CSV files in the extended Mastodon format:
      *  * domain (string, required) - hostname of the instance to block.
-     *  * severity (string) - one of 'suspend', 'silence', 'disconnect', or 'none'.
-     *      * suspend - completely disconnects the instance (implies 'silence' and 'disconnect')
+     *  * severity (string) - one of 'suspend', 'silence', 'ghost', or 'none'.
+     *      * suspend - completely disconnects the instance (implies 'silence' and 'ghost')
      *      * silence - hides posts and profiles from anyone who isn't following them.
      *      * disconnect - stops delivering local posts to the remote instance.
      *      * none - take no action (other fields still apply).
@@ -55,6 +55,7 @@ export interface Config {
      *  * reject_avatars (boolean) - true if profile avatars should be ignored.
      *  * reject_banners (boolean) - true if profile banner images should be ignored.
      *  * reject_backgrounds (boolean) - true if profile background images should be ignored.
+     *  * private_comment (string) - private (staff-only) block reason.
      */
     sources: SourceConfig[];
 
@@ -144,9 +145,6 @@ export interface SourceConfig {
      * Path to the source file, relative to the current working directory.
      */
     path: string;
-
-    // TODO extract name from path, and store it in the block
-    // TODO add private reason
 }
 
 export type SourceType = 'mastodon';
@@ -175,3 +173,6 @@ export type RemoteType = 'sharkey' | 'pleroma' | 'akkoma';
 
 const config: Config;
 export default config;
+
+
+// TODO fast mode

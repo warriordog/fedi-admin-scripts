@@ -14,6 +14,7 @@ export class SharkeyRemote implements Remote {
     public readonly stats = {
         createdBlocks: [] as Block[],
         updatedBlocks: [] as Block[],
+        unsupportedBlocks: [] as Block[],
         lostFollows: 0,
         lostFollowers: 0
     };
@@ -27,12 +28,23 @@ export class SharkeyRemote implements Remote {
     }
 
     async tryApplyBlock(block: Block): Promise<BlockResult> {
+        // Sharkey can't unlist without a full suspension
+        if (block.limitFederation === 'unlist') {
+            this.stats.unsupportedBlocks.push(block);
+            return 'unsupported';
+        }
+
+        // map the federation limit into individuals flags
+        const isSuspend = block.limitFederation === 'suspend';
+        const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
+        const isDisconnect = block.limitFederation === 'suspend' || block.limitFederation === 'ghost';
+
         // Get current block status
         const instance = await this.client.getInstance(block.host);
         const meta = await this.client.getAdminMeta();
 
         // Check for changes
-        if (isUpToDate(instance, meta, block)) {
+        if (isUpToDate(instance, meta, block, isSuspend, isSilence, isDisconnect)) {
             return 'skipped';
         }
 
@@ -42,12 +54,12 @@ export class SharkeyRemote implements Remote {
         // 3. if the remote instance is unknown and offline, then "instance" will be null. we still have to address local instance metadata.
 
         // silence and suspend (block) must be set through meta.
-        const doSuspend = block.suspend && !meta.blockedHosts.includes(block.host);
-        const doSilence = block.silence && !meta.silencedHosts.includes(block.host);
+        const doSuspend = isSuspend && !meta.blockedHosts.includes(block.host);
+        const doSilence = isSilence && !meta.silencedHosts.includes(block.host);
 
         // setNSFW (isNSFW) and stop delivery (suspend) must be set through instance.
         const doNSFW = block.setNSFW && !!instance && !instance.isNSFW;
-        const doDisconnect = block.disconnect && !!instance && !instance.isSuspended;
+        const doDisconnect = isDisconnect && !!instance && !instance.isSuspended;
 
         // reason (moderationNote) must be set through instance, but
         const doModNote = !!instance;
@@ -55,10 +67,10 @@ export class SharkeyRemote implements Remote {
         // We want to save a mod note, but it needs to specify whether this is a net-new or updated block.
         // That ends up being a rather ugly block of logic:
         const isNewBlock =
-            (block.suspend === doSuspend) &&
-            (block.silence === doSilence) &&
+            (isSuspend === doSuspend) &&
+            (isSilence === doSilence) &&
             (block.setNSFW === doNSFW || !instance) &&
-            (block.disconnect === doDisconnect|| !instance);
+            (isDisconnect === doDisconnect|| !instance);
 
         // Apply everything
         if (!this.config.dryRun) {
@@ -84,15 +96,23 @@ export class SharkeyRemote implements Remote {
             if (doDisconnect) {
                 await this.client.updateInstance({
                     host: block.host,
-                    isSuspended: instance.isSuspended || block.disconnect
+                    isSuspended: instance.isSuspended || isDisconnect
                 });
             }
 
             if (doModNote) {
                 const today = toYMD(new Date());
                 const blockType = isNewBlock ? 'created' : 'updated';
-                const blockReason = block.reason || 'unspecified'
-                const newModNote = `${today}: list import; ${blockType} block for [${blockReason}].`
+
+                // There are 4 possible wordings, depending on which fields are populated
+                const newModNote =
+                    block.publicReason
+                        ? block.privateReason
+                            ? `${today}: list import from ${block.source}; ${blockType} block for [${block.publicReason}] with note [${block.privateReason}].`
+                            : `${today}: list import from ${block.source}; ${blockType} block for [${block.publicReason}].`
+                        :block.privateReason
+                            ? `${today}: list import from ${block.source}; ${blockType} block with note [${block.privateReason}].`
+                            : `${today}: list import from ${block.source}; ${blockType} block without details.`
 
                 // Preserve any existing note.
                 // Sharkey uses newlines (\n) directly, which makes this easy.
@@ -138,18 +158,18 @@ export class SharkeyRemote implements Remote {
     }
 }
 
-function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyAdminMeta, block: Block): boolean {
+function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyAdminMeta, block: Block, isSuspend: boolean, isSilence: boolean, isDisconnect: boolean): boolean {
     // If the instance was loaded, then we can just check the properties.
     if (instance) {
-        if (block.disconnect && !instance.isSuspended) return false;
-        if (block.suspend && !instance.isBlocked) return false;
-        if (block.silence && !instance.isSilenced) return false;
+        if (isDisconnect && !instance.isSuspended) return false;
+        if (isSuspend && !instance.isBlocked) return false;
+        if (isSilence && !instance.isSilenced) return false;
         if (block.setNSFW && !instance.isNSFW) return false;
 
         // Otherwise, we need to check meta.
     } else {
-        if (block.suspend && !meta.blockedHosts.includes(block.host)) return false;
-        if (block.silence && !meta.silencedHosts.includes(block.host)) return false;
+        if (isSuspend && !meta.blockedHosts.includes(block.host)) return false;
+        if (isSilence && !meta.silencedHosts.includes(block.host)) return false;
     }
 
     return true;
