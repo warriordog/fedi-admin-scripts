@@ -19,10 +19,18 @@ export interface Config {
      * If true, then blocks will be uploaded through a faster method that reduces API calls.
      * While processing blocks, it will be unsafe to use the instance's federation controls directly.
      * Doing so could cause blocks to be rolled back or applied incorrectly.
-     * Not implemented yet.
      * Default: false
      */
     fastMode?: boolean;
+
+    /**
+     * If true, then existing blocks on each remote will be propagated to the others.
+     * More specifically, each remote's current blocklist will be retrieved and used as an additional source.
+     * Useful if you have manual blocks to synchronize, and *not* useful if you only have one remote.
+     * Default: false
+     * TODO implement crossSync
+     */
+    crossSync?: boolean;
 
     /**
      * If true, then an announcement post will be generated for each instance.

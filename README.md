@@ -8,7 +8,7 @@ These scripts are meant for use with Sharkey and/or Akkoma, but can be adapted f
 This script connects to multiple remote instances and applies a common set of domain blocks.
 One or more mastodon-format domain blocklists can be loaded, and the included blocks will be added to all attached instances. The tooling will automatically merge domains that appear in multiple entries, and remote instances are introspected to ensure that blocks are never duplicated on the server. Sharkey, Pleroma, and Akkoma are all supported.
 
-Additionally, the script ~~can~~ *will soon be able to* generate block announcement posts including domain, actions taken, and reasons. Posts are returned in markdown format for easy posting on any instance software.
+Additionally, the script can generate block announcement posts including domain, actions taken, and reasons. Posts are returned in Markdown format for easy posting on any instance software. A future update will include support for automatically publishing an announcement without user involvement. 
 
 ### Usage:
 
