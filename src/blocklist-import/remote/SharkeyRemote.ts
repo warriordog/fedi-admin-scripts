@@ -4,15 +4,16 @@ import {SharkeyClient} from "../../common/api/sharkey/SharkeyClient.js";
 import {Block} from "../domain/block.js";
 import {BlockResult} from "../domain/blockResult.js";
 import {SharkeyInstance} from "../../common/api/sharkey/sharkeyInstance.js";
-import {SharkeyMeta} from "../../common/api/sharkey/sharkeyMeta.js";
+import {SharkeyAdminMeta} from "../../common/api/sharkey/sharkeyAdminMeta.js";
 import {toYMD} from "../../common/util/dateUtils.js";
+import {Post} from "../domain/post.js";
 
 export class SharkeyRemote implements Remote {
     private readonly client: SharkeyClient;
 
     public readonly stats = {
-        createdBlocks: 0,
-        updatedBlocks: 0,
+        createdBlocks: [] as Block[],
+        updatedBlocks: [] as Block[],
         lostFollows: 0,
         lostFollowers: 0
     };
@@ -28,7 +29,7 @@ export class SharkeyRemote implements Remote {
     async tryApplyBlock(block: Block): Promise<BlockResult> {
         // Get current block status
         const instance = await this.client.getInstance(block.host);
-        const meta = await this.client.getMeta();
+        const meta = await this.client.getAdminMeta();
 
         // Check for changes
         if (isUpToDate(instance, meta, block)) {
@@ -108,9 +109,9 @@ export class SharkeyRemote implements Remote {
 
         // Update stats
         if (isNewBlock) {
-            this.stats.createdBlocks++;
+            this.stats.createdBlocks.push(block);
         } else {
-            this.stats.updatedBlocks++;
+            this.stats.updatedBlocks.push(block);
         }
         if (instance) {
             if (doSuspend || doDisconnect) {
@@ -126,9 +127,18 @@ export class SharkeyRemote implements Remote {
             ? 'created'
             : 'updated';
     }
+
+    async getMaxPostLength(): Promise<number> {
+        const meta = await this.client.getUserMeta();
+        return meta.maxNoteTextLength;
+    }
+
+    async publishPost(post: Post): Promise<string> {
+        return '(error: not implemented)';
+    }
 }
 
-function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyMeta, block: Block): boolean {
+function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyAdminMeta, block: Block): boolean {
     // If the instance was loaded, then we can just check the properties.
     if (instance) {
         if (block.disconnect && !instance.isSuspended) return false;

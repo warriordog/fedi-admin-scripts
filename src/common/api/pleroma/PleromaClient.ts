@@ -1,4 +1,5 @@
 import {PleromaConfig} from "./PleromaConfig.js";
+import {PleromaInstance} from "./pleromaInstance.js";
 
 export class PleromaClient {
     constructor(
@@ -6,8 +7,8 @@ export class PleromaClient {
         private readonly token: string
     ) {}
 
-   public async readConfig(): Promise<PleromaConfig> {
-       const resp = await this.makeGetRequest('/api/v1/pleroma/admin/config');
+    public async readConfig(): Promise<PleromaConfig> {
+        const resp = await this.makeGetRequest('/api/v1/pleroma/admin/config');
 
         if (!resp.ok) {
             throw new Error(`Failed to read instance config, got status ${resp.status} ${resp.statusText}`);
@@ -23,6 +24,17 @@ export class PleromaClient {
             throw new Error(`Failed to save instance config, got status ${resp.status} ${resp.statusText}`);
         }
     }
+
+    public async getInstance(): Promise<PleromaInstance> {
+        const resp = await this.makeGetRequest('/api/v1/instance');
+
+        if (!resp.ok) {
+            throw new Error(`Failed to read instance metadata, got status ${resp.status} ${resp.statusText}`);
+        }
+
+        return await resp.json() as PleromaInstance;
+    }
+
 
     private async makePostRequest(endpoint: string, payload: unknown): Promise<Response> {
         return await fetch(`https://${this.host}${endpoint}`, {

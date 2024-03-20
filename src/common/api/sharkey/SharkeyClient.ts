@@ -1,5 +1,6 @@
 import {SharkeyInstance} from "./sharkeyInstance.js";
-import {SharkeyMeta} from "./sharkeyMeta.js";
+import {SharkeyAdminMeta} from "./sharkeyAdminMeta.js";
+import {SharkeyUserMeta} from "./sharkeyUserMeta.js";
 
 export class SharkeyClient {
     constructor(
@@ -28,17 +29,27 @@ export class SharkeyClient {
         }
     }
 
-    public async getMeta(): Promise<SharkeyMeta> {
+    public async getAdminMeta(): Promise<SharkeyAdminMeta> {
         const resp = await this.makeRequest('/api/admin/meta');
 
         if (!resp.ok) {
             throw new Error(`Failed to query instance metadata, got status ${resp.status} ${resp.statusText}`);
         }
 
-        return await resp.json() as SharkeyMeta;
+        return await resp.json() as SharkeyAdminMeta;
     }
 
-    public async updateMeta(meta: Partial<SharkeyMeta>): Promise<void> {
+    public async getUserMeta(): Promise<SharkeyUserMeta> {
+        const resp = await this.makeRequest('/api/meta');
+
+        if (!resp.ok) {
+            throw new Error(`Failed to query instance metadata, got status ${resp.status} ${resp.statusText}`);
+        }
+
+        return await resp.json() as SharkeyUserMeta;
+    }
+
+    public async updateMeta(meta: Partial<SharkeyAdminMeta>): Promise<void> {
         const resp = await this.makeRequest('/api/admin/update-', meta);
 
         if (!resp.ok) {

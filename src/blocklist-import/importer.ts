@@ -1,8 +1,11 @@
-import {Config, SourceConfig} from "./domain/config.js";
+import {AnnouncementConfig, Config, defaultAnnouncementConfig, SourceConfig} from "./domain/config.js";
 import {createRemote, Remote} from "./remote/remote.js";
 import {Block} from "./domain/block.js";
 import {readSource} from "./source/source.js";
 import {SharkeyRemote} from "./remote/SharkeyRemote.js";
+import {AnnouncementBuilder} from "./announcement/AnnouncementBuilder.js";
+import {renderAnnouncement} from "./announcement/renderAnnouncement.js";
+import {Post} from "./domain/post.js";
 
 export async function importBlocklist(config: Config): Promise<void> {
     if (config.sources.length < 1) {
@@ -17,6 +20,10 @@ export async function importBlocklist(config: Config): Promise<void> {
 
     if (config.retractBlocks) {
         console.warn('Ignoring retractBlocks - retraction is not implemented.');
+    }
+
+    if (typeof(config.generateAnnouncements) === 'object' && config.generateAnnouncements.publishPosts) {
+        console.warn('Ignoring publishPosts - publish is not implemented');
     }
 
     if (config.dryRun) {
@@ -37,6 +44,9 @@ export async function importBlocklist(config: Config): Promise<void> {
 
     // Do the import
     await importBlocksToRemotes(blocks, remotes);
+
+    // Create announcement posts
+    await generateAnnouncements(remotes, config);
 
     // Print results
     printStats(remotes);
@@ -89,6 +99,85 @@ async function importBlocksToRemotes(blocks: Block[], remotes: Remote[]): Promis
     }
 }
 
+async function generateAnnouncements(remotes: Remote[], config: Config): Promise<void> {
+    // Normalize config and bail if disabled.
+    const announcementConfig = readAnnouncementConfig(config);
+    if (!announcementConfig.enabled) {
+        return;
+    }
+
+    console.info('#################################################');
+    console.info('#            Generating announcements           #');
+    console.info('#################################################');
+    console.info();
+
+    if (announcementConfig.publishPosts) {
+        console.info('You have enabled "publishPosts", so announcements will be automatically posted using the linked account(s).');
+    } else {
+        console.info('You have disabled "publishPosts", so announcements will be printed to the console in Markdown format.');
+        console.info('Each announcement will be broken down into individual posts to fit within the character limit.');
+    }
+    console.info();
+
+    const builder = new AnnouncementBuilder(announcementConfig);
+    for (const remote of remotes) {
+        // Don't make an announcement if nothing was blocked
+        if (remote.stats.createdBlocks.length === 0 && remote.stats.updatedBlocks.length === 0) {
+            console.info(`Skipping announcement thread for ${remote.host}; no blocks were changed so there is nothing to announce.`);
+            continue;
+        }
+
+        // Create a semantic announcement
+        const announcement = builder.createAnnouncement(remote);
+
+        // Render it into a raw post
+        const maxLength = await remote.getMaxPostLength();
+        const post = renderAnnouncement(announcement, maxLength);
+
+        if (config.dryRun) {
+            // Print announcement
+            console.info(`Generated announcement thread for ${remote.host}:`);
+            printPost(post);
+
+        } else {
+            // Post announcement
+            const postUrl = await remote.publishPost(post);
+            console.info(`${remote.host}: posted announcement to ${postUrl}.`);
+        }
+    }
+
+    console.info('');
+}
+
+function readAnnouncementConfig(fullConfig: Config): AnnouncementConfig {
+    let config: Partial<AnnouncementConfig>;
+
+    if (typeof(fullConfig.generateAnnouncements) === 'object') {
+        config = fullConfig.generateAnnouncements;
+    } else {
+        config = { enabled: fullConfig.generateAnnouncements === true };
+    }
+
+    return Object.assign(defaultAnnouncementConfig, config);
+}
+
+function printPost(post: Post, prefix?: string, index: number = 0): void {
+    const subPrefix = prefix
+        ? `${prefix}.${index + 1}`
+        : (index + 1).toString();
+
+    // Print the post header and contents
+    const type = prefix ? 'Reply' : 'Post';
+    console.info(`[${type} ${subPrefix}]`);
+    console.info(post.text);
+
+    // Print replies
+    for (let subIndex = 0; subIndex < post.replies.length; subIndex++){
+        const reply = post.replies[subIndex];
+        printPost(reply, subPrefix, subIndex);
+    }
+}
+
 function printStats(remotes: Remote[]): void {
     console.info('#################################################');
     console.info('#                Import complete                #');
@@ -97,16 +186,16 @@ function printStats(remotes: Remote[]): void {
 
     // Count the number of characters per column in the output, for pretty-printing.
     const remoteHostWidth = remotes.reduce((max, remote) => Math.max(max, remote.host.length), 0);
-    const createdBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.createdBlocks.toString().length), 0);
-    const updatedBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.updatedBlocks.toString().length), 0);
+    const createdBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.createdBlocks.length.toString().length), 0);
+    const updatedBlocksWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.updatedBlocks.length.toString().length), 0);
     const lostFollowsWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.lostFollows?.toString().length ?? 1), 0);
     const lostFollowersWidth = remotes.reduce((max, remote) => Math.max(max, remote.stats.lostFollowers?.toString().length ?? 1), 0);
 
     console.info('Final results for each remote:')
     for (const remote of remotes) {
         const remoteHost = `${remote.host}:`.padEnd(remoteHostWidth + 1, ' ');
-        const createdBlocks = remote.stats.createdBlocks.toString().padStart(createdBlocksWidth);
-        const updatedBlocks = remote.stats.updatedBlocks.toString().padStart(updatedBlocksWidth);
+        const createdBlocks = remote.stats.createdBlocks.length.toString().padStart(createdBlocksWidth);
+        const updatedBlocks = remote.stats.updatedBlocks.length.toString().padStart(updatedBlocksWidth);
         const lostFollows = (remote.stats.lostFollows?.toString() ?? '?' ).padStart(lostFollowsWidth);
         const lostFollowers = (remote.stats.lostFollowers?.toString() ?? '?').padStart(lostFollowersWidth);
 
@@ -118,6 +207,8 @@ function printStats(remotes: Remote[]): void {
     }
     console.info('');
 }
+
+// TODO merge suspend, silence, unlist, and disconnect into something like "restrictFederation"
 
 function getBlockActions(block: Block): string[] {
     const actions = [];

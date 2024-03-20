@@ -1,12 +1,13 @@
 // Note: this changes very often. it is accurate as of 2024-03-18.
 
-export interface SharkeyMeta {
+export interface SharkeyAdminMeta {
     maintainerName: string | null;
     maintainerEmail: string | null;
     version: string;
     name: string;
     shortName: string | null;
-    url: string;
+    uri: string;
+    description: string;
     langs: string[];
     tosUrl: string | null;
     repositoryUrl: string | null;
@@ -14,18 +15,19 @@ export interface SharkeyMeta {
     impressumUrl: string | null;
     donationUrl: string | null;
     privacyPolicyUrl: string | null;
-    disableRegistrations: boolean;
+    disableRegistration: boolean;
     emailRequiredForSignup: boolean;
     approvalRequiredForSignup: boolean;
     enableHcaptcha: boolean;
     hcaptchaSiteKey: string | null;
     enableMcaptcha: boolean;
     mcaptchaSiteKey: string | null;
+    mcaptchaInstanceUrl: null;
     enableRecaptcha: boolean;
     recaptchaSiteKey: string | null;
     enableTurnstile: boolean;
     turnstileSiteKey: string | null;
-    swPublicKey: string | null;
+    swPublickey: string | null;
     themeColor: string | null;
     mascotImageUrl: string | null;
     bannerUrl: string | null;
@@ -57,8 +59,8 @@ export interface SharkeyMeta {
     mcaptchaSecretKey: string | null;
     recaptchaSecretKey: string | null;
     turnstileSecretKey: string | null;
-    sensitiveMediaDetection: 'none';
-    sensitiveMediaDetectionSensitivity: 'medium';
+    sensitiveMediaDetection: string;
+    sensitiveMediaDetectionSensitivity: string;
     setSensitiveFlagAutomatically: boolean;
     enableSensitiveMediaDetectionForVideos: boolean;
     enableBotTrending: boolean;
@@ -100,7 +102,35 @@ export interface SharkeyMeta {
     enableAchievements: boolean;
     enableIdenticonGeneration: boolean;
     bannedEmailDomains: string[];
-    policies: Record<string, unknown>;
+    policies: {
+        gtlAvailable: boolean;
+        ltlAvailable: boolean;
+        btlAvailable: boolean;
+        canPublicNote: boolean;
+        mentionLimit: number;
+        canInvite: boolean;
+        inviteLimit: number;
+        inviteLimitCycle: number;
+        inviteExpirationTime: number;
+        canManageCustomEmojis: boolean;
+        canManageAvatarDecorations: boolean;
+        canSearchNotes: boolean;
+        canUseTranslator: boolean;
+        canHideAds: boolean;
+        driveCapacityMb: number;
+        alwaysMarkNsfw: boolean;
+        pinLimit: number;
+        antennaLimit: number;
+        wordMuteLimit: number;
+        webhookLimit: number;
+        clipLimit: number;
+        noteEachClipsLimit: number;
+        userListLimit: number;
+        userEachUserListsLimit: number;
+        rateLimitFactor: number;
+        canImportNotes: boolean;
+        avatarDecorationLimit: number;
+    };
     manifestJsonOverride: string;
     enableFanoutTimeline: boolean;
     enableFanoutTimelineDbFallback: boolean;

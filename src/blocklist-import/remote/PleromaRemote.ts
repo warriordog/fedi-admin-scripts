@@ -4,6 +4,7 @@ import {Block} from "../domain/block.js";
 import {BlockResult} from "../domain/blockResult.js";
 import {PleromaConfig, PleromaConfigSection, Tuple} from "../../common/api/pleroma/PleromaConfig.js";
 import {Config} from "../domain/config.js";
+import {Post} from "../domain/post.js";
 
 /**
  * Applies blocks to Pleroma / Akkoma instances.
@@ -13,8 +14,8 @@ export class PleromaRemote implements Remote {
     private readonly client: PleromaClient;
 
     public readonly stats = {
-        createdBlocks: 0,
-        updatedBlocks: 0
+        createdBlocks: [] as Block[],
+        updatedBlocks: [] as Block[]
     };
 
     constructor(
@@ -151,12 +152,21 @@ export class PleromaRemote implements Remote {
 
         // Update stats
         if (hasExistingBlock) {
-            this.stats.updatedBlocks++;
+            this.stats.updatedBlocks.push(block);
         } else {
-            this.stats.createdBlocks++;
+            this.stats.createdBlocks.push(block);
         }
 
         return hasExistingBlock ? 'updated' : 'created';
+    }
+
+    async getMaxPostLength(): Promise<number> {
+        const config = await this.client.getInstance();
+        return config.max_toot_chars;
+    }
+
+    async publishPost(post: Post): Promise<string> {
+        return '(error: not implemented)';
     }
 }
 

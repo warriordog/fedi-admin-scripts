@@ -3,6 +3,7 @@ import {BlockResult} from "../domain/blockResult.js";
 import {SharkeyRemote} from "./SharkeyRemote.js";
 import {PleromaRemote} from "./PleromaRemote.js";
 import {Config, RemoteConfig} from "../domain/config.js";
+import {Post} from "../domain/post.js";
 
 export interface Remote {
     /**
@@ -11,7 +12,7 @@ export interface Remote {
     readonly host: string;
 
     /**
-     *
+     * Statistics of the block actions taken so far.
      */
     readonly stats: Readonly<RemoteStats>;
 
@@ -20,20 +21,32 @@ export interface Remote {
      * @param block Block to apply
      */
     tryApplyBlock(block: Block): Promise<BlockResult>;
+
+    /**
+     * Returns the maximum length of a post that this remote will accept.
+     * Measured in characters.
+     */
+    getMaxPostLength(): Promise<number>;
+
+    /**
+     * Publishes a post from the current user's account.
+     * @returns URL of the uploaded post.
+     */
+    publishPost(post: Post): Promise<string>;
 }
 
 export interface RemoteStats {
     /**
-     * Number of new blocks added in this session.
+     * All new blocks that were created in this session.
      * Each domain is counted only once, even if multiple actions are taken.
      */
-    createdBlocks: number;
+    createdBlocks: Block[];
 
     /**
-     * Number of existing blocks that were changed in this session.
+     * All existing blocks that were updated in this session.
      * Each domain is counted only once, even if multiple actions are taken.
      */
-    updatedBlocks: number;
+    updatedBlocks: Block[];
 
     /**
      * Number of inward follow relations that have been blocked during this session.
