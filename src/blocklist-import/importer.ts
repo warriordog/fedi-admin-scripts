@@ -386,8 +386,8 @@ function printStats(config: Config, remotes: Remote[]): void {
     for (const remote of remotes) {
         const createdBlocksCount = remote.getCreatedBlocks().length;
         const updateBlocksCount = remote.getUpdatedBlocks().length;
-        const lostFollowsCount = remote.getLostFollowsCount();
-        const lostFollowersCount = remote.getLostFollowersCount();
+        const lostFollowsCount = remote.getLostFollowsCount() ?? 0;
+        const lostFollowersCount = remote.getLostFollowersCount() ?? 0;
 
         const remoteHost = `${remote.host}:`.padEnd(remoteHostWidth + 1, ' ');
         const createdBlocks = createdBlocksCount.toString().padStart(createdBlocksWidth);
@@ -395,7 +395,7 @@ function printStats(config: Config, remotes: Remote[]): void {
         const lostFollows = (lostFollowsCount?.toString() ?? '?' ).padStart(lostFollowsWidth);
         const lostFollowers = (lostFollowersCount?.toString() ?? '?').padStart(lostFollowersWidth);
 
-        let statMessage = lostFollowsCount !== undefined || lostFollowersCount !== undefined
+        let statMessage = lostFollowsCount > 0 || lostFollowersCount > 0
             ? `  ${remoteHost} Applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward follow relations.`
             : `  ${remoteHost} Applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`;
 
