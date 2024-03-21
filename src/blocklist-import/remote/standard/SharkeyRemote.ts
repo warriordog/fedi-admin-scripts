@@ -130,7 +130,7 @@ export class SharkeyRemote extends Remote {
         const lostFollows = instance && (doSuspend)
             ? instance.followersCount : 0;
         const action = isNewBlock ? 'created' : 'updated';
-        return { action, lostFollows, lostFollowers, error: undefined };
+        return { action, lostFollows, lostFollowers };
     }
 
     async getMaxPostLength(): Promise<number> {

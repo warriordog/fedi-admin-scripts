@@ -1,7 +1,6 @@
 import {Block} from "../domain/block.js";
 import {Post} from "../domain/post.js";
 import {BlockAction, BlockResult, FollowRelation} from "../domain/blockResult.js";
-import {SemiPartial} from "../../common/util/typeUtils.js";
 
 export abstract class Remote {
     /**
@@ -213,4 +212,7 @@ export interface RemoteSoftware {
  * * A `BlockResult` without the `block` property - it will be added automatically.
  * * A `BlockAction` - it will be wrapped into a `BlockResult` with zero lost relations.
  */
-export type PartialBlockResult = SemiPartial<BlockResult, 'block'> | BlockAction;
+export type PartialBlockResult = CompactBlockResult | BlockAction;
+interface CompactBlockResult extends Partial<BlockResult> {
+    action: BlockResult['action'];
+}
