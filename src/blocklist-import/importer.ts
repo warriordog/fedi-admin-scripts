@@ -63,13 +63,16 @@ export async function importBlocklist(config: Config): Promise<void> {
 }
 
 async function loadBlocks(sources: SourceConfig[]): Promise<Block[]> {
+    // Load all blocks in parallel
+    const blockLists = await Promise.all(
+        sources.map(s => readSource(s))
+    );
+
+    // Merge and flatten
     const uniqueBlocks = new Map<string, Block>();
 
-    for (const source of sources) {
-        // TODO read sources in parallel
-        const sourceBlocks = await readSource(source)
-
-        for (const block of sourceBlocks) {
+    for (const list of blockLists) {
+        for (const block of list) {
             const duplicateBlock = uniqueBlocks.get(block.host);
 
             if (duplicateBlock) {
@@ -111,15 +114,24 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
     console.info('#################################################');
     console.info();
 
+    // Initialize all remotes in parallel
     console.info('Connecting to remote instances:');
-    // TODO initialize remotes in parallel
-    for (const remote of remotes) {
-        if (remote.initialize) {
-            await remote.initialize();
-        }
+    const remoteSoftware = await Promise.all(
+        remotes.map(async remote => {
+            if (remote.initialize) {
+                await remote.initialize();
+            }
 
-        const { name, version } = await remote.getSoftware();
-        console.info(`  ${remote.host}: connected to ${name} version ${version}.`);
+            const { name, version } = await remote.getSoftware();
+            return {
+                host: remote.host,
+                name,
+                version
+            };
+        })
+    );
+    for (const {host, name, version} of remoteSoftware) {
+        console.info(`  ${host}: connected to ${name} version ${version}.`);
     }
     console.info();
 
@@ -138,11 +150,22 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
             continue;
         }
 
-        // TODO apply blocks in parallel
-        for (const remote of remotes) {
-            try {
-                const { action, lostFollows, lostFollowers } = await remote.tryApplyBlock(block);
+        // Apply blocks in parallel
+        const remoteResults = await Promise.all(
+            remotes.map(async remote => ({
+                remote,
+                result: await remote.tryApplyBlock(block)
+            }))
+        );
 
+        // Process all results
+        for (const { remote, result } of remoteResults) {
+            const { action, lostFollows, lostFollowers, error } = result;
+
+            if (error) {
+                console.error(`  failed ${remote.host} - an error was thrown:`, error);
+
+            } else {
                 const actionMessage = getBlockActionMessage(action, remote.host);
                 const lossMessage = getBlockLossMessage(remote, lostFollows, lostFollowers);
 
@@ -155,8 +178,6 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
                     printLostRelations(remote.tracksFollows, remote.seversFollows, 'outward', lostFollows);
                     printLostRelations(remote.tracksFollowers, remote.seversFollowers, 'inward', lostFollowers);
                 }
-            } catch (e) {
-                console.error(`  failed ${remote.host} - an error was thrown:`, e);
             }
         }
 
@@ -166,16 +187,24 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
     console.info('Done; all blocks have been processed.');
     console.info();
 
-    // TODO save changes in parallel
     if (remotes.some(r => r.commit)) {
         console.info('Saving final changes:');
-        for (const remote of remotes) {
-            if (remote.commit) {
-                await remote.commit();
-            }
 
-            console.info(`  ${remote.host}: all changes saved.`);
+        // Save changes in parallel
+        const savedHosts = await Promise.all(
+            remotes.map(async remote => {
+                if (remote.commit) {
+                    await remote.commit();
+                }
+
+                return remote.host;
+            })
+        );
+
+        for (const host of savedHosts) {
+            console.info(`  ${host}: all changes saved.`);
         }
+
         console.info();
     }
 }

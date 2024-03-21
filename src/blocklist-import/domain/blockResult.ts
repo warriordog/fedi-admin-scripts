@@ -5,6 +5,7 @@ export interface BlockResult {
     action: BlockAction;
     lostFollows?: number | FollowRelation[];
     lostFollowers?: number | FollowRelation[];
+    error?: Error;
 }
 
 export type BlockAction = 'created' | 'updated' | 'skipped' | 'unsupported';

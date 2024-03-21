@@ -69,7 +69,6 @@ export class SharkeyRemote extends Remote {
             (isDisconnect === doDisconnect|| !instance);
 
         // Apply everything
-        // TODO call sharkey API in parallel
         if (!this.config.dryRun) {
             if (doSuspend) {
                 await this.updateMeta({
@@ -131,7 +130,7 @@ export class SharkeyRemote extends Remote {
         const lostFollows = instance && (doSuspend)
             ? instance.followersCount : 0;
         const action = isNewBlock ? 'created' : 'updated';
-        return { action, lostFollows, lostFollowers };
+        return { action, lostFollows, lostFollowers, error: undefined };
     }
 
     async getMaxPostLength(): Promise<number> {

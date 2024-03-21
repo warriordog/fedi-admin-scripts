@@ -140,7 +140,7 @@ export abstract class Remote {
 
             // Normalize the partial result to be full and well-formed
             if (typeof(partialResult) === 'string') {
-                partialResult = { block, action: partialResult, lostFollows: 0, lostFollowers: 0 };
+                partialResult = { block, action: partialResult, lostFollows: 0, lostFollowers: 0, error: undefined };
 
             } else if (!partialResult.block) {
                 partialResult.block = block;
@@ -151,14 +151,15 @@ export abstract class Remote {
             return result;
 
         } catch (e) {
-            this.blockResults.push({
+            const result: BlockResult = {
                 block,
                 action: 'unsupported',
                 lostFollows: 0,
-                lostFollowers: 0
-            });
-
-            throw e;
+                lostFollowers: 0,
+                error: e as Error
+            };
+            this.blockResults.push(result);
+            return result;
         }
     }
 
