@@ -56,10 +56,10 @@ export abstract class Remote {
     }
 
     /**
-     * Returns all blocks that could not be processed due to errors or unsupported flags.
+     * Returns all blocks that could not be processed due to errors, unsupported flags, or potential for data loss
      */
-    getUnsupportedBlocks(): BlockResult[] {
-        return this.blockResults.filter(r => r.action === 'unsupported');
+    getExcludedBlocks(): BlockResult[] {
+        return this.blockResults.filter(r => r.action === 'excluded');
     }
 
     /**
@@ -152,7 +152,7 @@ export abstract class Remote {
         } catch (e) {
             const result: BlockResult = {
                 block,
-                action: 'unsupported',
+                action: 'excluded',
                 lostFollows: 0,
                 lostFollowers: 0,
                 error: e as Error

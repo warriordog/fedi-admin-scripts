@@ -44,7 +44,14 @@ export interface Config {
      * Other instances do not track follow relations *at all* and will not display any information
      * Default: true
      */
-    printLostFollows: boolean;
+    printLostConnections: boolean;
+
+    /**
+     * If true, then blocks will be skipped if they would impact any existing follow relations.
+     * This only works for remote software that tracks relations, others (like Pleroma) will always process the blocks.
+     * Default: false
+     */
+    preserveConnections: boolean;
 
     /**
      * List of blocklists to load, as an array of SourceConfig objects.

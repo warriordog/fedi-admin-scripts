@@ -31,7 +31,7 @@ export class PleromaRemote extends Remote {
     async applyBlock(block: Block): Promise<PartialBlockResult> {
         // Pleroma can't disconnect without a full suspension
         if (block.limitFederation === 'ghost') {
-            return 'unsupported';
+            return 'excluded';
         }
 
         // map the federation limit into individuals flags
@@ -97,7 +97,7 @@ export class PleromaRemote extends Remote {
 
         // Check for changes
         if (!hasBlockChanges) {
-            return 'skipped';
+            return 'unchanged';
         }
 
         // Add or update all blocks.

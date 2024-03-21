@@ -36,8 +36,21 @@ export async function importBlocklist(config: Config): Promise<void> {
     }
 
     // Construct remote clients
-    const remotes = config.remotes
-        .map(remote => createRemote(remote, config));
+    const remotes = config.remotes.map(remote =>
+        createRemote(remote, config)
+    );
+
+    if (config.preserveConnections && remotes.some(r => !r.tracksFollowers || !r.tracksFollowers)) {
+        console.warn('warning: Preserve Connections is enabled, but one or more remotes does not support it and will process all blocks.');
+    }
+
+    const maySeverConnections = remotes.some(r =>
+        (r.seversFollows && (!config.preserveConnections || !r.tracksFollows)) ||
+        (r.seversFollowers && (!config.preserveConnections || !r.tracksFollowers))
+    );
+    if (maySeverConnections) {
+        console.warn('warning: One or more remotes is using software that will *permanently* sever existing follow relations when a block is processed. The changes may be irreversible.')
+    }
 
     // Load blocklists
     const blocks = await loadBlocks(config.sources);
@@ -174,7 +187,7 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
                 else
                     console.info(`  ${actionMessage}.`);
 
-                if (config.printLostFollows) {
+                if (config.printLostConnections) {
                     printLostRelations(remote.tracksFollows, remote.seversFollows, 'outward', lostFollows);
                     printLostRelations(remote.tracksFollowers, remote.seversFollowers, 'inward', lostFollowers);
                 }
@@ -242,10 +255,10 @@ function getBlockActionMessage(action: BlockAction, host: string): string {
     } else if (action === 'updated') {
         return `Updated block on ${host}`;
 
-    } else if (action === 'unsupported') {
-        return `Skipped ${host} - does not support this block`;
+    } else if (action === 'excluded') {
+        return `Excluded ${host} - block is unsupported or excluded by settings`;
 
-    } else if (action === 'skipped') {
+    } else if (action === 'unchanged') {
         return `Skipped ${host} - already blocks this domain`;
 
     } else {
@@ -399,16 +412,16 @@ function printStats(config: Config, remotes: Remote[]): void {
             ? `  ${remoteHost} Applied ${createdBlocks} new and ${updatedBlocks} updated blocks, losing ${lostFollows} outward and ${lostFollowers} inward follow relations.`
             : `  ${remoteHost} Applied ${createdBlocks} new and ${updatedBlocks} updated blocks.`;
 
-        const unsupportedBlocksCount = remote.getUnsupportedBlocks().length;
-        const unsupportedPlural = unsupportedBlocksCount === 1 ? '' : 's';
-        if (unsupportedBlocksCount > 0) {
-            statMessage += ` ${unsupportedBlocksCount} block${unsupportedPlural} could not be applied due to errors or unsupported flags.`;
+        const excludedBlocksCount = remote.getExcludedBlocks().length;
+        const excludedPlural = excludedBlocksCount === 1 ? '' : 's';
+        if (excludedBlocksCount > 0) {
+            statMessage += ` ${excludedBlocksCount} block${excludedPlural} were excluded due to errors, unsupported flags, or potential for lost connections.`;
         }
 
         console.info(statMessage);
 
         // Lost follows, if enabled, have to go on a separate line because they will print out full details.
-        if (config.printLostFollows) {
+        if (config.printLostConnections) {
             const lossPerHost = remote.getCreatedBlocks()
                 .concat(remote.getUpdatedBlocks())
                 .map(({ block: { host }, lostFollows, lostFollowers}) => {
@@ -451,9 +464,13 @@ function printStats(config: Config, remotes: Remote[]): void {
 function printWarnings(config: Config, remotes: Remote[]): void {
     const warnings: string[] = [];
 
-    // Print a warning if any blocks were unsupported
-    if (remotes.some(r => r.getUnsupportedBlocks().length > 0)) {
+    // Print a warning if any blocks were excluded
+    if (remotes.some(r => r.getExcludedBlocks().length > 0)) {
         warnings.push('Some blocks could not be applied to all instances. See the above logs for details.');
+
+        if (config.preserveConnections && !config.dryRun) {
+            warnings.push('Current settings may have obscured some details. Consider re-running with "dryRun: true" and "preserveConnections: false" to see details about impacted follow relations');
+        }
     }
 
     // Print a warning if any follows were lost

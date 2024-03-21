@@ -27,7 +27,7 @@ export class SharkeyRemote extends Remote {
     async applyBlock(block: Block): Promise<PartialBlockResult> {
         // Sharkey can't unlist without a full suspension
         if (block.limitFederation === 'unlist') {
-            return 'unsupported';
+            return 'excluded';
         }
 
         // map the federation limit into individuals flags
@@ -41,7 +41,7 @@ export class SharkeyRemote extends Remote {
 
         // Check for changes
         if (isUpToDate(instance, meta, block, isSuspend, isSilence, isDisconnect)) {
-            return 'skipped';
+            return 'unchanged';
         }
 
         // This is all very fucked:
@@ -67,6 +67,17 @@ export class SharkeyRemote extends Remote {
             (isSilence === doSilence) &&
             (block.setNSFW === doNSFW || !instance) &&
             (isDisconnect === doDisconnect|| !instance);
+
+        // Check for existing follow relations
+        // "followingCount" and "followersCount" are intentionally flipped because sharkey uses opposite terminology.
+        const lostFollowers = instance && (doSuspend || doDisconnect)
+            ? instance.followingCount : 0;
+        const lostFollows = instance && (doSuspend)
+            ? instance.followersCount : 0;
+
+        if (this.config.preserveConnections && (lostFollowers > 0 || lostFollows > 0)) {
+            return 'excluded';
+        }
 
         // Apply everything
         if (!this.config.dryRun) {
@@ -123,12 +134,6 @@ export class SharkeyRemote extends Remote {
             }
         }
 
-        // Compute final block results;
-        // "followingCount" and "followersCount" are intentionally flipped because sharkey uses opposite terminology.
-        const lostFollowers = instance && (doSuspend || doDisconnect)
-            ? instance.followingCount : 0;
-        const lostFollows = instance && (doSuspend)
-            ? instance.followersCount : 0;
         const action = isNewBlock ? 'created' : 'updated';
         return { action, lostFollows, lostFollowers };
     }

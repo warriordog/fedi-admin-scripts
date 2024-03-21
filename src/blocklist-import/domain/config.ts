@@ -21,7 +21,8 @@ export const defaultConfig: Config = {
     fastMode: false,
     crossSync: false,
     announcements: defaultAnnouncementConfig,
-    printLostFollows: true,
+    printLostConnections: true,
+    preserveConnections: false,
     sources: [],
     remotes: []
 }

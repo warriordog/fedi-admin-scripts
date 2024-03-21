@@ -8,7 +8,7 @@ export interface BlockResult {
     error?: Error;
 }
 
-export type BlockAction = 'created' | 'updated' | 'skipped' | 'unsupported';
+export type BlockAction = 'created' | 'updated' | 'unchanged' | 'excluded';
 export interface FollowRelation {
     follower: string;
     followee: string;
