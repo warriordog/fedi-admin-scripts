@@ -57,6 +57,34 @@ export class SharkeyClient {
         }
     }
 
+    public async searchInstances(query: Partial<SearchInstancesQuery>): Promise<SharkeyInstance[]> {
+        query.sort ??= '+pubSub';
+        query.allowPartial ??= true;
+        query.limit = 100;
+        query.offset = 0;
+
+        const pages: SharkeyInstance[][] = [];
+        while (true) {
+            const resp = await this.makeRequest('/api/federation/instances', query);
+            if (!resp.ok) {
+                throw new Error(`Failed to query instances search, got status ${resp.status} ${resp.statusText}`);
+            }
+
+            // Read the next page.
+            // Sharkey doesn't tell us when we hit the end, so we only stop if we get no results.
+            const page = await resp.json() as SharkeyInstance[];
+            if (page.length === 0) {
+                break;
+            }
+
+            // save and "slide over" to the next page
+            pages.push(page);
+            query.offset += query.limit;
+        }
+
+        return pages.flat();
+    }
+
     private async makeRequest(endpoint: string, payload?: Record<string, unknown>): Promise<Response> {
         const body = payload
             ? Object.assign({}, payload, { i: this.token })
@@ -71,4 +99,18 @@ export class SharkeyClient {
             body: JSON.stringify(body)
         });
     }
+}
+
+export interface SearchInstancesQuery {
+    sort: string;
+    limit: number;
+    offset?: number;
+    allowPartial?: boolean;
+
+    host?: string | null;
+    nsfw?: boolean;
+    federating?: boolean;
+    silenced?: boolean;
+    blocked?: boolean;
+    suspended?: boolean;
 }

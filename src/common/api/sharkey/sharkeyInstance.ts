@@ -23,5 +23,5 @@ export interface SharkeyInstance {
     infoUpdatedAt: string;
     latestRequestReceivedAt: string | null;
     isNSFW: boolean;
-    moderationNote: string;
+    moderationNote: string | null;
 }

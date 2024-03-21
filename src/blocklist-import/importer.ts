@@ -1,7 +1,7 @@
-import {Config, SourceConfig} from "./domain/config.js";
+import {Config} from "./domain/config.js";
 import {Remote} from "./remote/Remote.js";
 import {Block, FederationLimit} from "./domain/block.js";
-import {readSource} from "./source/source.js";
+import {readSource, Source} from "./source/source.js";
 import {AnnouncementBuilder} from "./announcement/AnnouncementBuilder.js";
 import {renderAnnouncement} from "./announcement/renderAnnouncement.js";
 import {Post} from "./domain/post.js";
@@ -9,60 +9,19 @@ import {createRemote} from "./remote/createRemote.js";
 import {BlockAction, FollowRelation} from "./domain/blockResult.js";
 
 export async function importBlocklist(config: Config): Promise<void> {
-    if (config.sources.length < 1) {
-        console.info('No source lists defined - exiting.')
+    const { remotes, blocks } = await setup(config);
+
+    if (blocks.length < 1) {
+        console.warn('No blocks were loaded, please check your configuration and lists.');
+        console.warn('exiting.');
         return;
     }
 
-    if (config.remotes.length < 1) {
-        console.info('No remotes defined - exiting.');
+    if (remotes.length < 1) {
+        console.warn('No remotes defined, please check your configuration.');
+        console.warn('exiting.');
         return;
     }
-
-    if (config.retractBlocks) {
-        console.warn('Ignoring retractBlocks - retraction is not implemented.');
-    }
-
-    if (typeof(config.announcements) === 'object' && config.announcements.publishPosts) {
-        console.warn('Ignoring publishPosts - publish is not implemented');
-    }
-
-    if (config.dryRun) {
-        console.info('Dry run requested - blocks will not be saved.');
-    }
-
-    if (config.fastMode) {
-        console.warn('warning: Fast Mode is enabled. This will greatly speed up the process, but the remote instances will be in an inconsistent state until the script finishes. Do not attempt to manually adjust any remote blocks while the script is running!');
-    }
-
-    // Construct remote clients
-    const remotes = config.remotes.map(remote =>
-        createRemote(remote, config)
-    );
-
-    if (config.preserveConnections && remotes.some(r => !r.tracksFollowers || !r.tracksFollowers)) {
-        console.warn('warning: Preserve Connections is enabled, but one or more remotes does not support it and will process all blocks.');
-    }
-
-    const maySeverConnections = remotes.some(r =>
-        (r.seversFollows && (!config.preserveConnections || !r.tracksFollows)) ||
-        (r.seversFollowers && (!config.preserveConnections || !r.tracksFollowers))
-    );
-    if (maySeverConnections) {
-        console.warn('warning: One or more remotes is using software that will *permanently* sever existing follow relations when a block is processed. The changes may be irreversible.')
-    }
-
-    // Load blocklists
-    const blocks = await loadBlocks(config.sources);
-    if (blocks.length > 0) {
-        const blockPlural = blocks.length === 1 ? '' : 's';
-        const listPlural = config.sources.length === 1 ? '' : 's';
-        console.info(`Loaded ${blocks.length} unique block${blockPlural} from ${config.sources.length} source list${listPlural}.`);
-
-    } else {
-        console.warn('No blocks were loaded - please check the script config and source lists.');
-    }
-    console.info('');
 
     // Do the import
     await importBlocksToRemotes(config, remotes, blocks);
@@ -72,60 +31,19 @@ export async function importBlocklist(config: Config): Promise<void> {
 
     // Print results
     printStats(config, remotes);
-    printWarnings(config, remotes);
+    printFinalWarnings(config, remotes);
 }
 
-async function loadBlocks(sources: SourceConfig[]): Promise<Block[]> {
-    // Load all blocks in parallel
-    const blockLists = await Promise.all(
-        sources.map(s => readSource(s))
-    );
-
-    // Merge and flatten
-    const uniqueBlocks = new Map<string, Block>();
-
-    for (const list of blockLists) {
-        for (const block of list) {
-            const duplicateBlock = uniqueBlocks.get(block.host);
-
-            if (duplicateBlock) {
-                console.info(`Merging duplicate block entries for ${block.host}. (found in sources "${block.source}" and "${duplicateBlock.source}")`);
-
-                block.publicReason = `${block.publicReason} | ${duplicateBlock.publicReason}`;
-                block.privateReason = `${block.privateReason} | ${duplicateBlock.privateReason}`;
-                block.redact ||= duplicateBlock.redact;
-                block.limitFederation = mergeLimits(block.limitFederation, duplicateBlock.limitFederation);
-                block.setNSFW ||= duplicateBlock.setNSFW;
-                block.rejectMedia ||= duplicateBlock.rejectMedia;
-                block.rejectAvatars ||= duplicateBlock.rejectAvatars;
-                block.rejectBanners ||= duplicateBlock.rejectBanners;
-                block.rejectBackgrounds ||= duplicateBlock.rejectBackgrounds;
-                block.rejectReports ||= duplicateBlock.rejectReports;
-            }
-
-            uniqueBlocks.set(block.host, block);
-        }
-    }
-
-    return Array.from(uniqueBlocks.values());
-}
-
-function mergeLimits(first: FederationLimit | undefined, second: FederationLimit | undefined): FederationLimit | undefined {
-    // suspend > silence > unlist > disconnect > nothing
-
-    if (first === 'suspend' || second === 'suspend') return 'suspend';
-    if (first === 'silence' || second === 'silence') return 'silence';
-    if (first === 'unlist' || second === 'unlist') return 'unlist';
-    if (first === 'ghost' || second === 'ghost') return 'ghost';
-
-    return undefined;
-}
-
-async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: Block[]): Promise<void> {
+async function setup(config: Config): Promise<{ remotes: Remote[], blocks: Block[] }> {
     console.info('#################################################');
-    console.info('#              Applying all blocks              #');
+    console.info('#                 Initializing                  #');
     console.info('#################################################');
     console.info();
+
+    // Construct remote clients
+    const remotes = config.remotes.map(remote =>
+        createRemote(remote, config)
+    );
 
     // Initialize all remotes in parallel
     console.info('Connecting to remote instances:');
@@ -148,6 +66,121 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
     }
     console.info();
 
+    // Print warnings
+    const warnings: string[] = [];
+    if (config.retractBlocks)
+        warnings.push('Ignoring retractBlocks - retraction is not implemented.')
+    if (typeof(config.announcements) === 'object' && config.announcements.publishPosts)
+        warnings.push('Ignoring publishPosts - publish is not implemented')
+    if (config.dryRun)
+        warnings.push('Dry run requested - blocks will not be saved.');
+    if (config.fastMode)
+        warnings.push('Fast Mode is enabled. This will greatly speed up the process, but the remote instances will be in an inconsistent state until the script finishes. Do not attempt to manually adjust any remote blocks while the script is running!');
+    if (config.preserveConnections && remotes.some(r => !r.tracksFollowers || !r.tracksFollowers))
+        warnings.push('warning: Preserve Connections is enabled, but one or more remotes does not support it and will process all blocks.');
+    if (remotes.some(r =>
+        (r.seversFollows && (!config.preserveConnections || !r.tracksFollows)) ||
+        (r.seversFollowers && (!config.preserveConnections || !r.tracksFollowers))
+    ))
+        warnings.push('warning: One or more remotes is using software that will *permanently* sever existing follow relations when a block is processed. The changes may be irreversible.');
+    printWarnings(warnings);
+
+    // TODO add pause before continuing if there are warnings
+
+    // Load blocklists
+    console.info('Loading all defined blocks:')
+    const sources = getSources(config, remotes);
+    const blocks = await loadBlocks(config, sources);
+
+    const blockPlural = blocks.length === 1 ? '' : 's';
+    const listPlural = sources.length === 1 ? '' : 's';
+    console.info(`Loaded ${blocks.length} unique block${blockPlural} from ${sources.length} source list${listPlural}.`);
+    console.info('');
+
+    return { remotes, blocks };
+}
+
+function getSources(config: Config, remotes: Remote[]): Source[] {
+    let sources: Source[] = config.sources;
+
+    if (config.crossSync) {
+        const remoteSources: Source[] = remotes.map(remote => ({ type: 'remote', remote }));
+        sources = remoteSources.concat(sources);
+    }
+
+    return sources;
+}
+
+async function loadBlocks(config: Config, sources: Source[]): Promise<Block[]> {
+    // Load all blocks in parallel
+    const blockLists = await Promise.all(
+        sources.map(s => readSource(s))
+    );
+
+    // Merge and flatten
+    const uniqueBlocks = new Map<string, Block>();
+
+    for (const list of blockLists) {
+        for (const block of list) {
+            const duplicateBlock = uniqueBlocks.get(block.host);
+
+            if (duplicateBlock) {
+                const sources = Array.from(new Set(block.sources.concat(duplicateBlock.sources)));
+
+                if (config.printMergedBlocks) {
+                    const sourceList = sources.join(', ');
+                    console.info(`  Merging duplicate block entries for ${block.host}. (found in sources: ${sourceList})`);
+                }
+
+                block.sources = sources;
+
+                block.publicReason = mergeReasons(block.publicReason, duplicateBlock.publicReason);
+                block.privateReason = mergeReasons(block.privateReason, duplicateBlock.privateReason);
+                block.redact ||= duplicateBlock.redact;
+
+                block.limitFederation = mergeLimits(block.limitFederation, duplicateBlock.limitFederation);
+                block.setNSFW ||= duplicateBlock.setNSFW;
+
+                block.rejectMedia ||= duplicateBlock.rejectMedia;
+                block.rejectAvatars ||= duplicateBlock.rejectAvatars;
+                block.rejectBanners ||= duplicateBlock.rejectBanners;
+                block.rejectBackgrounds ||= duplicateBlock.rejectBackgrounds;
+                block.rejectReports ||= duplicateBlock.rejectReports;
+            }
+
+            uniqueBlocks.set(block.host, block);
+        }
+    }
+
+    return Array.from(uniqueBlocks.values());
+}
+
+function mergeReasons(first: string | undefined, second: string | undefined): string | undefined {
+    // If both are present, then we need to merge.
+    if (first && second)
+        return `${first} | ${second}`;
+
+    // Otherwise, we just take whichever is present (possibly neither).
+    return first || second;
+}
+
+function mergeLimits(first: FederationLimit | undefined, second: FederationLimit | undefined): FederationLimit | undefined {
+    // suspend > silence > unlist > disconnect > nothing
+
+    if (first === 'suspend' || second === 'suspend') return 'suspend';
+    if (first === 'silence' || second === 'silence') return 'silence';
+    if (first === 'unlist' || second === 'unlist') return 'unlist';
+    if (first === 'ghost' || second === 'ghost') return 'ghost';
+
+    return undefined;
+}
+
+async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: Block[]): Promise<void> {
+    console.info('#################################################');
+    console.info('#              Applying all blocks              #');
+    console.info('#################################################');
+    console.info();
+
     console.info(`Running matrix of ${blocks.length} blocks across ${remotes.length} remotes.`);
     console.info('This may take a while, please be patient.');
     console.info();
@@ -156,8 +189,20 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
         const actions = getBlockActions(block);
         if (actions.length > 0) {
             const actionString = concatBlockActions(actions);
-            const ending = block.redact ? ' (redacted).' : '.';
-            console.info(`${block.host}: ${actionString} for "${block.publicReason}"${ending}`);
+            const ending = block.redact ? ' (redacted)' : '';
+
+            if (block.publicReason && block.privateReason) {
+                console.info(`${block.host}: ${actionString} for "${block.publicReason}" with note "${block.privateReason}"${ending}.`);
+
+            } else if (block.publicReason) {
+                console.info(`${block.host}: ${actionString} for "${block.publicReason}"${ending}.`);
+
+            } else if (block.privateReason) {
+                console.info(`${block.host}: ${actionString} with note "${block.privateReason}"${ending}.`);
+
+            } else {
+                console.info(`${block.host}: ${actionString} without reason or note${ending}.`);
+            }
         } else {
             console.warn(`${block.host}: no actions defined, block will be skipped.`);
             continue;
@@ -461,7 +506,7 @@ function printStats(config: Config, remotes: Remote[]): void {
     console.info('');
 }
 
-function printWarnings(config: Config, remotes: Remote[]): void {
+function printFinalWarnings(config: Config, remotes: Remote[]): void {
     const warnings: string[] = [];
 
     // Print a warning if any blocks were excluded
@@ -483,6 +528,10 @@ function printWarnings(config: Config, remotes: Remote[]): void {
         warnings.push('This was a dry run. Blocks are not actually applied.');
     }
 
+    printWarnings(warnings);
+}
+
+function printWarnings(warnings: string[]): void {
     if (warnings.length > 0) {
         for (const warning of warnings) {
             console.warn(`warning: ${warning}`);

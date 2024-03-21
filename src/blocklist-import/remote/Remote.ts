@@ -182,9 +182,14 @@ export abstract class Remote {
     abstract publishPost(post: Post): Promise<string>;
 
     /**
-     * Returns information about the remote's software
+     * Returns information about the remote's software.
      */
     abstract getSoftware(): Promise<RemoteSoftware>;
+
+    /**
+     * Downloads the remote's current blocklist.
+     */
+    abstract getBlocklist(): Promise<Block[]>;
 
     /**
      * Loads any common data that will be needed for import.

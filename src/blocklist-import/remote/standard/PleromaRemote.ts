@@ -34,28 +34,22 @@ export class PleromaRemote extends Remote {
             return 'excluded';
         }
 
-        // map the federation limit into individuals flags
-        const isSuspend = block.limitFederation === 'suspend';
-        const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
-        const isUnlist = block.limitFederation === 'suspend' || block.limitFederation === 'silence' || block.limitFederation === 'unlist';
+        // Read the config
+        const {
+            mrfSimpleSection,
+            mrfSection,
 
-        // Read config
-        const instanceConfig = await this.getConfig();
-        const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as MRFSection;
-        const mrfSection = findConfigSection(instanceConfig, ':pleroma', ':mrf') as MRFSection;
-
-        // Unpack tuple objects.
-        // Each one is a list of [domain, block reason] pairs for a particular category (but in a really weird format).
-        const federatedTimelineRemoval = getTuple(mrfSimpleSection, ':federated_timeline_removal');
-        const reject = getTuple(mrfSimpleSection, ':reject');
-        const followersOnly = getTuple(mrfSimpleSection, ':followers_only');
-        const mediaRemoval = getTuple(mrfSimpleSection, ':media_removal');
-        const mediaNSFW = getTuple(mrfSimpleSection, ':media_nsfw');
-        const reportRemoval = getTuple(mrfSimpleSection, ':report_removal');
-        const avatarRemoval = getTuple(mrfSimpleSection, ':avatar_removal');
-        const bannerRemoval = getTuple(mrfSimpleSection, ':banner_removal');
-        const backgroundRemoval = getTuple(mrfSimpleSection, ':background_removal');
-        const transparencyExclusions = getTuple(mrfSection, ':transparency_exclusions');
+            federatedTimelineRemoval,
+            reject,
+            followersOnly,
+            mediaRemoval,
+            avatarRemoval,
+            bannerRemoval,
+            backgroundRemoval,
+            mediaNSFW,
+            reportRemoval,
+            transparencyExclusions
+        } = await this.getMRFSections();
 
         // Find current blocks
         const existingUnlist = federatedTimelineRemoval.find(t => t.tuple[0] === block.host);
@@ -81,6 +75,11 @@ export class PleromaRemote extends Remote {
         const isReportRejected = !!existingRejectReports;
         const isTransparencyExcluded = !!existingTransparencyExclusions;
         const hasExistingBlock = isUnlisted || isSuspended || isSilenced || isMediaRejected || isAvatarRejected || isBannerRejected || isBackgroundRejected || isSetNSFW || isReportRejected || isTransparencyExcluded;
+
+        // map the federation limit into individuals flags
+        const isSuspend = block.limitFederation === 'suspend';
+        const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
+        const isUnlist = block.limitFederation === 'suspend' || block.limitFederation === 'silence' || block.limitFederation === 'unlist';
 
         // Compute changes
         const doUnlist = isUnlist && !isUnlisted;
@@ -182,15 +181,83 @@ export class PleromaRemote extends Remote {
         return parseVersion(instance.version);
     }
 
-    async getConfig(): Promise<PleromaConfig> {
+    async getBlocklist(): Promise<Block[]> {
+        // Read the config
+        const {
+            federatedTimelineRemoval,
+            reject,
+            followersOnly,
+            mediaRemoval,
+            avatarRemoval,
+            bannerRemoval,
+            backgroundRemoval,
+            mediaNSFW,
+            reportRemoval,
+            transparencyExclusions
+        } = await this.getMRFSections();
+
+        // Pivot from (type -> [host, reason]) to (host -> [type[], reason])
+        const allHosts = getAllHosts(federatedTimelineRemoval, reject, followersOnly, mediaRemoval, avatarRemoval, bannerRemoval, backgroundRemoval, mediaNSFW, reportRemoval, transparencyExclusions);
+        return allHosts.map(host => ({
+            host,
+            sources: [ this.host ],
+
+            publicReason: combineTuples(host, federatedTimelineRemoval, reject, followersOnly, mediaRemoval, avatarRemoval, bannerRemoval, backgroundRemoval, mediaNSFW, reportRemoval, transparencyExclusions),
+            privateReason: getTupleValue(host, transparencyExclusions),
+            redact: isInTuple(host, transparencyExclusions),
+
+            limitFederation:
+                isInTuple(host, reject)
+                    ? 'suspend'
+                    : isInTuple(host, followersOnly)
+                        ? 'silence'
+                        : isInTuple(host, federatedTimelineRemoval)
+                            ? 'unlist'
+                            : undefined,
+            setNSFW: isInTuple(host, mediaNSFW),
+
+            rejectMedia: isInTuple(host, mediaRemoval),
+            rejectAvatars: isInTuple(host, avatarRemoval),
+            rejectBanners: isInTuple(host, bannerRemoval),
+            rejectBackgrounds: isInTuple(host, backgroundRemoval),
+            rejectReports: isInTuple(host, bannerRemoval)
+        }));
+    }
+
+    private async getMRFSections() {
+        // Read config
+        const instanceConfig = await this.getConfig();
+        const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as MRFSection;
+        const mrfSection = findConfigSection(instanceConfig, ':pleroma', ':mrf') as MRFSection;
+
+        return {
+            mrfSection,
+            mrfSimpleSection,
+
+            // Unpack tuple objects.
+            // Each one is a list of [domain, block reason] pairs for a particular category (but in a really weird format).
+            federatedTimelineRemoval: getConfigTuple(mrfSimpleSection, ':federated_timeline_removal'),
+            reject: getConfigTuple(mrfSimpleSection, ':reject'),
+            followersOnly: getConfigTuple(mrfSimpleSection, ':followers_only'),
+            mediaRemoval: getConfigTuple(mrfSimpleSection, ':media_removal'),
+            mediaNSFW: getConfigTuple(mrfSimpleSection, ':media_nsfw'),
+            reportRemoval: getConfigTuple(mrfSimpleSection, ':report_removal'),
+            avatarRemoval: getConfigTuple(mrfSimpleSection, ':avatar_removal'),
+            bannerRemoval: getConfigTuple(mrfSimpleSection, ':banner_removal'),
+            backgroundRemoval: getConfigTuple(mrfSimpleSection, ':background_removal'),
+            transparencyExclusions: getConfigTuple(mrfSection, ':transparency_exclusions')
+        };
+    }
+
+    protected async getConfig(): Promise<PleromaConfig> {
         return await this.client.getConfig();
     }
 
-    async updateConfig(config: PleromaConfig): Promise<void> {
+    protected async updateConfig(config: PleromaConfig): Promise<void> {
         await this.client.updateConfig(config);
     }
 
-    async getInstance(): Promise<PleromaInstance> {
+    protected async getInstance(): Promise<PleromaInstance> {
         return await this.client.getInstance();
     }
 }
@@ -214,7 +281,7 @@ function findConfigSection(config: PleromaConfig, group: string, key: string): P
  * Gets or creates a configuration tuple in the given MRF config.
  * Returns an array of [domain, block reason] tuples for the given category.
  */
-function getTuple(config: MRFSection, key: string): Tuple<string>[] {
+function getConfigTuple(config: MRFSection, key: string): Tuple<string>[] {
     // Happy path - it already exists in the config
     for (const entry of config.value) {
         if (entry.tuple[0] === key) {
@@ -251,4 +318,40 @@ function parseVersion(version: string): RemoteSoftware {
 
     // Otherwise, it's just regular Pleroma.
     return { name: 'Pleroma', version: pleromaVersion };
+}
+
+function getAllHosts(federatedTimelineRemoval: Tuple<string>[], reject: Tuple<string>[], followersOnly: Tuple<string>[], mediaRemoval: Tuple<string>[], avatarRemoval: Tuple<string>[], bannerRemoval: Tuple<string>[], backgroundRemoval: Tuple<string>[], mediaNSFW: Tuple<string>[], reportRemoval: Tuple<string>[], transparencyExclusions: Tuple<string>[]): string[] {
+    const hosts = [federatedTimelineRemoval, reject, followersOnly, mediaRemoval, avatarRemoval, bannerRemoval, backgroundRemoval, mediaNSFW, reportRemoval, transparencyExclusions]
+        .flat(2)
+        .map(t => t.tuple[0]);
+
+    return Array.from(new Set(hosts));
+}
+
+/**
+ * Find all tuples for the provided host, then concat all unique values.
+ */
+function combineTuples(host: string, ...tuples: Tuple<string>[][]): string | undefined {
+    return tuples
+        .flat()
+        .map(t => t.tuple)
+        .filter(t => t[0] === host)
+        .reduce((merged, [_,next]) => {
+            if (!merged)
+                return next;
+            if (merged.includes(next))
+                return merged;
+            return `${merged} | ${next}`;
+
+        }, undefined as string | undefined)
+}
+
+function getTupleValue(host: string, tuple: Tuple<string>[]): string | undefined {
+    return tuple
+        .find(t => t.tuple[0] === host)
+        ?.tuple[1];
+}
+
+function isInTuple(host: string, tuple: Tuple<string>[]): boolean {
+    return tuple.some(t => t.tuple[0] === host);
 }

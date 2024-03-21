@@ -28,7 +28,7 @@ export interface Config {
      * More specifically, each remote's current blocklist will be retrieved and used as an additional source.
      * Useful if you have manual blocks to synchronize, and *not* useful if you only have one remote.
      * Default: false
-     * TODO implement crossSync and move to the RemoteConfig
+     * TODO move to the RemoteConfig
      */
     crossSync: boolean;
 
@@ -47,6 +47,12 @@ export interface Config {
     printLostConnections: boolean;
 
     /**
+     * If true, then all merged blocks will be printed to the output.
+     * Default: false
+     */
+    printMergedBlocks: boolean;
+
+    /**
      * If true, then blocks will be skipped if they would impact any existing follow relations.
      * This only works for remote software that tracks relations, others (like Pleroma) will always process the blocks.
      * Default: false
@@ -59,7 +65,7 @@ export interface Config {
      *  1. "type" - must be set to "mastodon".
      *  2. "path" - path to the source file.
      *
-     * At least one source must be provided.
+     * At least one source must be provided, unless crossSync is enabled.
      * Entries will be de-duplicated by merging all duplicates and keeping all actions that appear at least once.
      *
      * Mastodon-format lists should be CSV files in the extended Mastodon format:

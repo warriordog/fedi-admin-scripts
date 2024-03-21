@@ -1,6 +1,6 @@
 export interface Block {
     host: string;
-    source: string;
+    sources: string[];
 
     publicReason?: string;
     privateReason?: string;

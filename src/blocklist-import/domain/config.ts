@@ -22,11 +22,13 @@ export const defaultConfig: Config = {
     crossSync: false,
     announcements: defaultAnnouncementConfig,
     printLostConnections: true,
+    printMergedBlocks: false,
     preserveConnections: false,
     sources: [],
     remotes: []
 }
 
+// TODO read from JSON
 export function readConfigFile(): Config {
     // Overlay the config on top of defaults.
     const config: Config = Object.assign({}, defaultConfig, configFile);

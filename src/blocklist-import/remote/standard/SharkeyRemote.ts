@@ -33,14 +33,14 @@ export class SharkeyRemote extends Remote {
         // map the federation limit into individuals flags
         const isSuspend = block.limitFederation === 'suspend';
         const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
-        const isDisconnect = block.limitFederation === 'suspend' || block.limitFederation === 'ghost';
+        const isGhost = block.limitFederation === 'suspend' || block.limitFederation === 'ghost';
 
         // Get current block status
         const instance = await this.client.getInstance(block.host);
         const meta = await this.getMeta();
 
         // Check for changes
-        if (isUpToDate(instance, meta, block, isSuspend, isSilence, isDisconnect)) {
+        if (isUpToDate(instance, meta, block, isSuspend, isSilence, isGhost)) {
             return 'unchanged';
         }
 
@@ -55,7 +55,7 @@ export class SharkeyRemote extends Remote {
 
         // setNSFW (isNSFW) and stop delivery (suspend) must be set through instance.
         const doNSFW = block.setNSFW && !!instance && !instance.isNSFW;
-        const doDisconnect = isDisconnect && !!instance && !instance.isSuspended;
+        const doGhost = isGhost && !!instance && !instance.isSuspended;
 
         // reason (moderationNote) must be set through instance, but
         const doModNote = !!instance;
@@ -66,11 +66,11 @@ export class SharkeyRemote extends Remote {
             (isSuspend === doSuspend) &&
             (isSilence === doSilence) &&
             (block.setNSFW === doNSFW || !instance) &&
-            (isDisconnect === doDisconnect|| !instance);
+            (isGhost === doGhost|| !instance);
 
         // Check for existing follow relations
         // "followingCount" and "followersCount" are intentionally flipped because sharkey uses opposite terminology.
-        const lostFollowers = instance && (doSuspend || doDisconnect)
+        const lostFollowers = instance && (doSuspend || doGhost)
             ? instance.followingCount : 0;
         const lostFollows = instance && (doSuspend)
             ? instance.followersCount : 0;
@@ -100,26 +100,27 @@ export class SharkeyRemote extends Remote {
                 });
             }
 
-            if (doDisconnect) {
+            if (doGhost) {
                 await this.client.updateInstance({
                     host: block.host,
-                    isSuspended: instance.isSuspended || isDisconnect
+                    isSuspended: instance.isSuspended || isGhost
                 });
             }
 
             if (doModNote) {
                 const today = toYMD(new Date());
+                const source = block.sources.join(' & ');
                 const blockType = isNewBlock ? 'created' : 'updated';
 
                 // There are 4 possible wordings, depending on which fields are populated
                 const newModNote =
                     block.publicReason
                         ? block.privateReason
-                            ? `${today}: list import from ${block.source}; ${blockType} block for [${block.publicReason}] with note [${block.privateReason}].`
-                            : `${today}: list import from ${block.source}; ${blockType} block for [${block.publicReason}].`
+                            ? `${today}: list import from ${source}; ${blockType} block for [${block.publicReason}] with note [${block.privateReason}].`
+                            : `${today}: list import from ${source}; ${blockType} block for [${block.publicReason}].`
                         :block.privateReason
-                            ? `${today}: list import from ${block.source}; ${blockType} block with note [${block.privateReason}].`
-                            : `${today}: list import from ${block.source}; ${blockType} block without details.`
+                            ? `${today}: list import from ${source}; ${blockType} block with note [${block.privateReason}].`
+                            : `${today}: list import from ${source}; ${blockType} block without details.`
 
                 // Preserve any existing note.
                 // Sharkey uses newlines (\n) directly, which makes this easy.
@@ -152,11 +153,65 @@ export class SharkeyRemote extends Remote {
         return { name: 'Sharkey', version: meta.version };
     }
 
-    async getMeta(): Promise<SharkeyAdminMeta> {
+    async getBlocklist(): Promise<Block[]> {
+        // Lookup each list
+        const { blockedHosts, silencedHosts } = await this.getMeta();
+        const instances = mapUniqueInstances(
+            await this.client.searchInstances({ suspended: true }),
+            await this.client.searchInstances({ silenced: true }),
+            await this.client.searchInstances({ blocked: true }),
+            await this.client.searchInstances({ nsfw: true })
+        );
+
+        // Pivot from (type -> (host | instance)) to (host -> type)
+        const allHosts = getAllHosts(instances, blockedHosts, silencedHosts);
+        return allHosts.map((host): Block => {
+            const instance = instances.get(host);
+
+            // Unknown instance give us very little to go on
+            if (!instance) {
+                return {
+                    host,
+                    sources: [this.host],
+                    limitFederation:
+                        blockedHosts.includes(host)
+                            ? 'suspend'
+                            : silencedHosts.includes(host)
+                                ? 'silence'
+                                : undefined
+                };
+            }
+
+            // But known instances have tons of metadata!
+            const [_, publicReason, privateReason]
+                = instance.moderationNote?.match(/block(?: for \[([^\]]+)])?(?: with note \[([^\]]+)])?/i)
+                ?? [undefined, undefined, undefined];
+
+            return ({
+                host,
+                sources: [this.host],
+
+                publicReason,
+                privateReason,
+
+                limitFederation:
+                    instance.isBlocked
+                        ? 'suspend'
+                        : instance.isSilenced
+                            ? 'silence'
+                            : instance.isSuspended
+                                ? 'ghost'
+                                : undefined,
+                setNSFW: instance.isNSFW
+            });
+        });
+    }
+
+    protected async getMeta(): Promise<SharkeyAdminMeta> {
         return await this.client.getAdminMeta();
     }
 
-    async updateMeta(meta: Partial<SharkeyAdminMeta>): Promise<void> {
+    protected async updateMeta(meta: Partial<SharkeyAdminMeta>): Promise<void> {
         await this.client.updateMeta(meta);
     }
 }
@@ -176,4 +231,24 @@ function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyAdminMeta, bl
     }
 
     return true;
+}
+
+function mapUniqueInstances(...instances: SharkeyInstance[][]): Map<string, SharkeyInstance> {
+    const unique = new Map<string, SharkeyInstance>();
+
+    for (const instance of instances.flat()) {
+        // We will probably overwrite many times here, but that's ok.
+        // All the instance objects should be identical.
+        unique.set(instance.host, instance);
+    }
+
+    return unique;
+}
+
+function getAllHosts(instances: Map<string, SharkeyInstance>, blockedHosts: string[], silencedHosts: string[]): string[] {
+    const hosts =
+        Array.from(instances.keys())
+        .concat(blockedHosts, silencedHosts);
+
+    return Array.from(new Set(hosts));
 }

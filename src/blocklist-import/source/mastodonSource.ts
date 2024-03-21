@@ -6,7 +6,7 @@ export async function readMastodonSource(path: string): Promise<Block[]> {
     const rows = await parseCSVFile<MastodonCSVRow>(path, { header: true, columns: true });
     return rows.map(r => ({
         host: r.domain,
-        source: basename(path),
+        sources: [ basename(path) ],
 
         publicReason: r.public_comment?.replaceAll(/\r?\n/g, ' ') ?? '',
         privateReason: r.private_comment?.replaceAll(/\r?\n/g, ' ') ?? '',
