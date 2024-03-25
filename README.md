@@ -36,6 +36,8 @@ This query is intended for use with Sharkey, although it should work with any Mi
 
 ## pack-for-misskey: Convert an emoji pack from Pleroma to Misskey format
 
+![](./docs/pack-for-misskey.png "Three panels of an IDE showing the input and output JSON")
+
 Given the URL of an emoji pack in Pleroma / Akkoma format, this script will download it and generate a matching `meta.json` to enable its use with Misskey.
 Multiple manifest files can be linked, and all packs in the manifest will be downloaded.
 The resulting files are left in a named folder for the user to zip up.
