@@ -84,7 +84,7 @@ for (const [manifestUrl, manifestFile] of Object.entries(config.manifestUrls)) {
 
         // Write files index
         const filesPath = join(packDir, pack.files);
-        const filesJson = JSON.stringify(files);
+        const filesJson = JSON.stringify(files, null, 4);
         await writeFile(filesPath, filesJson, 'utf-8');
 
         // Cleanup, very important!
