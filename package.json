@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "import-blocklist": "tsc -b && node dist/blocklist-import/importBlocklist.js",
+    "pack-for-misskey": "tsc -b && node dist/pack-for-misskey/packForMisskey.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -15,5 +16,8 @@
     "@types/node": "^20.11.28",
     "typescript": "^5.4.2",
     "undici-types": "^6.9.0"
+  },
+  "dependencies": {
+    "node-stream-zip": "^1.15.0"
   }
 }

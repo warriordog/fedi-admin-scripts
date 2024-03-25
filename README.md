@@ -33,3 +33,18 @@ This query is intended for use with Sharkey, although it should work with any Mi
 
 1. Edit `printFollowRelations.sql` and replace the example instances with those that you want to check. 
 2. Connect to Sharkey's PostgreSQL database and execute the script.
+
+## pack-for-misskey: Convert an emoji pack from Pleroma to Misskey format
+
+Given the URL of an emoji pack in Pleroma / Akkoma format, this script will download it and generate a matching `meta.json` to enable its use with Misskey.
+Multiple manifest files can be linked, and all packs in the manifest will be downloaded.
+The resulting files are left in a named folder for the user to zip up.
+
+**Important: this script does not validate pack filenames and paths.**
+Make sure to only import packs from trusted sources, or else your computer could be vulnerable to attacks.
+
+### Usage:
+
+1. Edit the `config` property in `src/pack-for-misskey/packForMisskey.ts` to specify manifest files and output directory.
+2. Run `npm install` (you only have to do this once)
+3. Run `npm run pack-for-misskey`
