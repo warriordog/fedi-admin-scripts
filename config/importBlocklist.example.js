@@ -13,5 +13,7 @@ export default {
     remotes: [
         { type: 'sharkey', host: 'sharkey.example.com', token: '' },
         { type: 'akkoma', host: 'akkoma.example.com', token: '' }
-    ]
+    ],
+
+    dryRun: false
 };

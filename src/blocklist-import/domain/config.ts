@@ -17,7 +17,7 @@ export const defaultAnnouncementConfig: AnnouncementConfig = {
 
 export const defaultConfig: Config = {
     retractBlocks: false,
-    dryRun: false,
+    dryRun: true,
     fastMode: false,
     crossSync: false,
     announcements: defaultAnnouncementConfig,

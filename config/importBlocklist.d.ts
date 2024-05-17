@@ -11,7 +11,7 @@ export interface Config {
     /**
      * If true, then blocks will not be saved to any instance.
      * Instead, the predicted actions will be printed to the console.
-     * Default: false
+     * Default: true
      */
     dryRun: boolean;
 
@@ -201,7 +201,7 @@ export type RemoteType = 'sharkey' | 'pleroma' | 'akkoma';
 /**
  * Deeply-optional version of Config representing the config file schema.
  */
-export type ConfigFile = Partial<Config & { announcements: Partial<AnnouncementConfig> }>;
+export type ConfigFile = Partial<Config & { announcements?: Partial<AnnouncementConfig> }>;
 
 const config: ConfigFile;
 export default config;
