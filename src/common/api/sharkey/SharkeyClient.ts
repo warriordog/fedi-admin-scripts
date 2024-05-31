@@ -22,7 +22,7 @@ export class SharkeyClient {
     }
 
     public async updateInstance(instance: Partial<SharkeyInstance>): Promise<void> {
-        const resp = await this.makeRequest('/api/federation/update-instance', instance);
+        const resp = await this.makeRequest('/api/admin/federation/update-instance', instance);
 
         if (!resp.ok) {
             throw new Error(`Failed to update instance ${instance.host}, got status ${resp.status} ${resp.statusText}`);
