@@ -50,7 +50,7 @@ export class SharkeyClient {
     }
 
     public async updateMeta(meta: Partial<SharkeyAdminMeta>): Promise<void> {
-        const resp = await this.makeRequest('/api/admin/update-', meta);
+        const resp = await this.makeRequest('/api/admin/update-meta', meta);
 
         if (!resp.ok) {
             throw new Error(`Failed to update instance metadata, got status ${resp.status} ${resp.statusText}`);
