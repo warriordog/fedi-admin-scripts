@@ -393,17 +393,16 @@ async function generateAnnouncements(config: Config, remotes: Remote[]): Promise
         const maxLength = await remote.getMaxPostLength();
         const post = renderAnnouncement(announcement, maxLength);
 
-        if (config.dryRun) {
+        if (config.announcements.publishPosts) {
+            // Post announcement
+            const postUrl = await remote.publishPost(post);
+            console.info(`${remote.host}: posted announcement to ${postUrl}.`);
+        } else {
             // Print announcement
             console.info(`Generated announcement thread for ${remote.host}:`);
             console.info();
             printPost(post);
             console.info('[End]');
-
-        } else {
-            // Post announcement
-            const postUrl = await remote.publishPost(post);
-            console.info(`${remote.host}: posted announcement to ${postUrl}.`);
         }
     }
 
