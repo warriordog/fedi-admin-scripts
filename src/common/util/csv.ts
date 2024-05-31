@@ -107,7 +107,7 @@ function popCSVLine(fields: string[][], numExpectedCells: number | null): string
     }
 
     if (numExpectedCells != null && row.length !== numExpectedCells) {
-        throw new Error(`Parsing error: found ${row.length} fields, but expected ${numExpectedCells}`);
+        throw new Error(`Parsing error: found ${row.length} fields, but expected ${numExpectedCells}. Cells: ${JSON.stringify(row)}`);
     }
 
     return row;
