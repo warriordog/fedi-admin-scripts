@@ -50,3 +50,20 @@ Make sure to only import packs from trusted sources, or else your computer could
 1. Edit the `config` property in `src/pack-for-misskey/packForMisskey.ts` to specify manifest files and output directory.
 2. Run `npm install` (you only have to do this once)
 3. Run `npm run pack-for-misskey`
+
+## full-text-index: Create a full-text index for faster note search
+
+This script will create an additional index on the `note` table, providing much faster note search at the cost of additional disk space.
+The PostgreSQL `pg_trgm` extension is enabled to support queries using `LIKE` and `ILIKE`, which ensures that Sharkey's search implementation will work as-is.
+An additional script is provided to remove the index.
+
+### Installation:
+
+Execute `create-full-text-index.sql` on the Sharkey database and wait for completion.
+This may take a long time, up to an hour for very large databases.
+If you get an error on the `CREATE EXTENSION` line, check that `pg_trgm` is installed as a PostgreSQL module or system package.
+
+### Removal:
+
+1. [Optional] If you are using `pg_trgm` for other purposes, then comment out the last `DROP EXTENSION` line.
+2. Execute `drop-full-text-index.sql` on the Sharkey database.
