@@ -15,7 +15,7 @@ Additionally, the script can generate block announcement posts including domain,
 This script is currently rather difficult to use, due to the lack of a proper authentication method. You will need to capture a session token for your admin account(s) before running the script. (see step 3 for more details.)
 
 1. Add blocklists to the `data` directory (or another accessible location).
-2. Copy `config/importBlocklist.example.js` to `config/importBlocklist.js` and fill out the "sources" property. For each list, add a line like this: `{ type: 'mastodon', path: 'data/whatever-block-list.csv' },`.
+2. Copy [`config/importBlocklist.example.js`](config/importBlocklist.example.js) to `config/importBlocklist.js` and fill out the "sources" property. For each list, add a line like this: `{ type: 'mastodon', path: 'data/whatever-block-list.csv' },`.
 3. Fill out the "remotes" property with connection details for your instance(s). Use the provided examples, and be sure to change the "host" property to match. The "token" should be an active session token from an admin account - you can get this through the web browser dev tools. Hint: for sharkey, capture a `POST` request and look for the `i` property. For Akkoma, open Admin-FE and take the `Authorization` header from any request. Remove the `Bearer` part and any whitespace.
 4. Run `npm install` (you only have to do this once)
 5. Run `npm run import-blocklist` and the script will begin importing blocks. Progress will be printed for each block and instance.
@@ -31,7 +31,7 @@ This query is intended for use with Sharkey, although it should work with any Mi
 
 ### Usage:
 
-1. Edit `printFollowRelations.sql` and replace the example instances with those that you want to check. 
+1. Edit [`printFollowRelations.sql`](src/follow-relations/printFollowRelations.sql) and replace the example instances with those that you want to check. 
 2. Connect to Sharkey's PostgreSQL database and execute the script.
 
 ## pack-for-misskey: Convert an emoji pack from Pleroma to Misskey format
@@ -47,7 +47,7 @@ Make sure to only import packs from trusted sources, or else your computer could
 
 ### Usage:
 
-1. Edit the `config` property in `src/pack-for-misskey/packForMisskey.ts` to specify manifest files and output directory.
+1. Edit the `config` property in [`packForMisskey.ts`](src/pack-for-misskey/packForMisskey.ts) to specify manifest files and output directory.
 2. Run `npm install` (you only have to do this once)
 3. Run `npm run pack-for-misskey`
 
@@ -59,11 +59,11 @@ An additional script is provided to remove the index.
 
 ### Installation:
 
-Execute `create-full-text-index.sql` on the Sharkey database and wait for completion.
+Execute [`create-full-text-index.sql`](src/full-text-index/create-full-text-index.sql) on the Sharkey database and wait for completion.
 This may take a long time, up to an hour for very large databases.
 If you get an error on the `CREATE EXTENSION` line, check that `pg_trgm` is installed as a PostgreSQL module or system package.
 
 ### Removal:
 
 1. [Optional] If you are using `pg_trgm` for other purposes, then comment out the last `DROP EXTENSION` line.
-2. Execute `drop-full-text-index.sql` on the Sharkey database.
+2. Execute [`drop-full-text-index.sql`](src/full-text-index/drop-full-text-index.sql) on the Sharkey database.
