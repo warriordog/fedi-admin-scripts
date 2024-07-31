@@ -53,9 +53,9 @@ Make sure to only import packs from trusted sources, or else your computer could
 
 ## full-text-index: Create a full-text index for faster note search
 
-This script will create an additional index on the `note` table, providing much faster note search at the cost of additional disk space.
+This script will create an additional indexes on the `note` and `user` tables, providing much faster search at the cost of additional disk space.
 The PostgreSQL `pg_trgm` extension is enabled to support queries using `LIKE` and `ILIKE`, which ensures that Sharkey's search implementation will work as-is.
-An additional script is provided to remove the index.
+An additional script is provided to remove the indexes.
 
 ### Installation:
 
