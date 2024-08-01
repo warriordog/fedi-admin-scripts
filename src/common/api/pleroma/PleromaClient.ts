@@ -45,7 +45,8 @@ export class PleromaClient {
                 Accept: 'application/json',
                 Authorization: `Bearer ${this.token}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            keepalive: true
         });
     }
 
@@ -56,7 +57,8 @@ export class PleromaClient {
             headers: {
                 Accept: 'application/json',
                 Authorization: `Bearer ${this.token}`
-            }
+            },
+            keepalive: true
         });
     }
 }
