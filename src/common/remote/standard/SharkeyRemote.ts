@@ -3,7 +3,7 @@ import {SharkeyClient} from "../../api/sharkey/SharkeyClient.js";
 import {Block} from "../../domain/block.js";
 import {toYMD} from "../../util/dateUtils.js";
 import {Post} from "../../domain/post.js";
-import {SharkeyInstance} from "../../api/sharkey/sharkeyInstance.js";
+import {isSuspended, SharkeyInstance} from "../../api/sharkey/sharkeyInstance.js";
 import {SharkeyAdminMeta} from "../../api/sharkey/sharkeyAdminMeta.js";
 import {RemoteSettings} from "../remoteSettings.js";
 
@@ -157,7 +157,8 @@ export class SharkeyRemote extends Remote {
         // Lookup each list
         const { blockedHosts, silencedHosts } = await this.getMeta();
         const instances = mapUniqueInstances(
-            await this.client.searchInstances({ suspended: true }),
+            (await this.client.searchInstances({ suspended: true }))
+                .filter(i => isSuspended(i)),
             await this.client.searchInstances({ silenced: true }),
             await this.client.searchInstances({ blocked: true }),
             await this.client.searchInstances({ nsfw: true })
@@ -213,7 +214,7 @@ export class SharkeyRemote extends Remote {
 function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyAdminMeta, block: Block, isSuspend: boolean, isSilence: boolean, isDisconnect: boolean): boolean {
     // If the instance was loaded, then we can just check the properties.
     if (instance) {
-        if (isDisconnect && !instance.isSuspended) return false;
+        if (isDisconnect && !isSuspended(instance)) return false;
         if (isSuspend && !instance.isBlocked) return false;
         if (isSilence && !instance.isSilenced) return false;
         if (block.setNSFW && !instance.isNSFW) return false;

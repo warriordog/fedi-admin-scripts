@@ -8,6 +8,7 @@ export interface SharkeyInstance {
     followersCount: number;
     isNotResponding: number;
     isSuspended: boolean;
+    suspensionState?: string;
     isBlocked: boolean;
     softwareName: string | null;
     softwareVersion: string | null;
@@ -24,4 +25,12 @@ export interface SharkeyInstance {
     latestRequestReceivedAt: string | null;
     isNSFW: boolean;
     moderationNote: string | null;
+}
+
+export function isSuspended(instance: SharkeyInstance): boolean {
+    // Newer instances track automatic suspensions, but only ones don't have the property at al.
+    if (instance.suspensionState && instance.suspensionState !== 'manuallySuspended')
+        return false;
+
+    return instance.isSuspended;
 }
