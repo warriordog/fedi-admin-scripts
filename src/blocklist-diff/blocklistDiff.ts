@@ -11,25 +11,26 @@ const diffPath = process.argv[2];
 const sourcePaths = process.argv.slice(3);
 
 // Read source blocklists
-type Row = string[] & Record<string, string | undefined>;
 const sources = await Promise.all(sourcePaths
     .map(async p => ({
         name: basename(p, extname(p)),
-        lines: await readCSVFile(p)
+        lines: await readBlocklist(p)
     }))
 );
 
 // Diff blocklists
-const domains = new Set(
-    sources.flatMap(s =>
-        Array.from(s.lines.keys())
+const domains = Array.from(
+    new Set(
+        sources.flatMap(s =>
+            Array.from(s.lines.keys())
+        )
     )
 );
-const blocks = Array
-    .from(domains)
+const blocks = domains
     .sort()
     .reduce((map, domain) => {
-        const flags = sources.map(s => getSourceProperty(s.lines, domain, '#severity', 'severity') || 'none');
+        const aliases = explodeDomain(domain);
+        const flags = sources.map(s => getBlockSeverity(s.lines, aliases));
         return map.set(domain, flags);
     }, new Map<string, string[]>);
 
@@ -46,7 +47,16 @@ const results: string[][] = [
 ];
 await writeCSVFile(diffPath, results);
 
-async function readCSVFile(path: string): Promise<Map<string, Row>> {
+/** Row of a CSV blocklist */
+type Row = string[] & Record<string, string | undefined>;
+
+/** Block entry from a list */
+type Block = { domain: string, severity: string };
+
+/**
+ * Reads a CSV blocklist into a keyed dictionary of Domain => Block.
+ */
+async function readBlocklist(path: string): Promise<Map<string, Block>> {
     const lines = await parseCSVFile<Row>(path, { header: true, columns: true });
 
     return lines.reduce((map, line, i) => {
@@ -61,21 +71,41 @@ async function readCSVFile(path: string): Promise<Map<string, Row>> {
             return map;
         }
 
-        return map.set(domain, line);
-    }, new Map<string, Row>());
+        const severity = (line['#severity'] || line.severity)?.toLowerCase() || 'none';
+
+        return map.set(domain, {
+            domain,
+            severity
+        });
+    }, new Map<string, Block>());
 }
 
-function getSourceProperty(rows: Map<string, Row>, domain: string, ...properties: string[]): string | undefined {
-    const row = rows.get(domain);
+/**
+ * Explodes a domain name into a list of base domains.
+ * The returned list includes the original domain, and is ordered by decreasing specificity.
+ */
+function explodeDomain(domain: string): string[] {
+    const aliases = [ domain ];
+    while (domain.includes('.')) {
+        domain = domain.substring(domain.indexOf('.') + 1);
+        if (domain) {
+            aliases.push(domain);
+        }
+    }
+    return aliases;
+}
 
-    if (row) {
-        for (const prop of properties) {
-            const value = row[prop];
-            if (value) {
-                return value;
-            }
+/**
+ * Finds a blocked domain by aliases (base domain list) and returns the severity.
+ * Defaults to "none" if the block is not in the list.
+ */
+function getBlockSeverity(list: Map<string, Block>, domainAliases: string[]): string {
+    for (const domain of domainAliases) {
+        const block = list.get(domain);
+        if (block) {
+            return block.severity;
         }
     }
 
-    return undefined;
+    return 'none';
 }
