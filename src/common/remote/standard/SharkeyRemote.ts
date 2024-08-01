@@ -1,11 +1,11 @@
 import {PartialBlockResult, Remote, RemoteSoftware} from "../Remote.js";
-import {SharkeyClient} from "../../../common/api/sharkey/SharkeyClient.js";
-import {Config} from "../../../../config/importBlocklist.js";
+import {SharkeyClient} from "../../api/sharkey/SharkeyClient.js";
 import {Block} from "../../domain/block.js";
-import {toYMD} from "../../../common/util/dateUtils.js";
+import {toYMD} from "../../util/dateUtils.js";
 import {Post} from "../../domain/post.js";
-import {SharkeyInstance} from "../../../common/api/sharkey/sharkeyInstance.js";
-import {SharkeyAdminMeta} from "../../../common/api/sharkey/sharkeyAdminMeta.js";
+import {SharkeyInstance} from "../../api/sharkey/sharkeyInstance.js";
+import {SharkeyAdminMeta} from "../../api/sharkey/sharkeyAdminMeta.js";
+import {RemoteSettings} from "../remoteSettings.js";
 
 export class SharkeyRemote extends Remote {
     readonly tracksFollowers = true;
@@ -16,7 +16,7 @@ export class SharkeyRemote extends Remote {
     private readonly client: SharkeyClient
 
     constructor(
-        private readonly config: Config,
+        private readonly settings: RemoteSettings,
         public readonly host: string,
         token: string
     ) {
@@ -75,12 +75,12 @@ export class SharkeyRemote extends Remote {
         const lostFollows = instance && (doSuspend)
             ? instance.followersCount : 0;
 
-        if (this.config.preserveConnections && (lostFollowers > 0 || lostFollows > 0)) {
+        if (this.settings.preserveConnections && (lostFollowers > 0 || lostFollows > 0)) {
             return 'excluded';
         }
 
         // Apply everything
-        if (!this.config.dryRun) {
+        if (!this.settings.dryRun) {
             if (doSuspend) {
                 await this.updateMeta({
                     blockedHosts: meta.blockedHosts.concat(block.host)
@@ -183,17 +183,11 @@ export class SharkeyRemote extends Remote {
             }
 
             // But known instances have tons of metadata!
-            const [_, publicReason, privateReason]
-                = instance.moderationNote?.match(/block(?: for \[([^\]]+)])?(?: with note \[([^\]]+)])?/i)
-                ?? [undefined, undefined, undefined];
-
             return ({
                 host,
                 sources: [this.host],
 
-                publicReason,
-                privateReason,
-
+                privateReason: instance.moderationNote ?? undefined,
                 limitFederation:
                     instance.isBlocked
                         ? 'suspend'

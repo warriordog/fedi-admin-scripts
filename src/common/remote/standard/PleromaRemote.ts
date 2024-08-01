@@ -1,10 +1,10 @@
 import {PartialBlockResult, Remote, RemoteSoftware} from "../Remote.js";
-import {PleromaClient} from "../../../common/api/pleroma/PleromaClient.js";
-import {Config} from "../../../../config/importBlocklist.js";
+import {PleromaClient} from "../../api/pleroma/PleromaClient.js";
 import {Block} from "../../domain/block.js";
-import {PleromaConfig, PleromaConfigSection, Tuple} from "../../../common/api/pleroma/PleromaConfig.js";
+import {PleromaConfig, PleromaConfigSection, Tuple} from "../../api/pleroma/PleromaConfig.js";
 import {Post} from "../../domain/post.js";
-import {PleromaInstance} from "../../../common/api/pleroma/pleromaInstance.js";
+import {PleromaInstance} from "../../api/pleroma/pleromaInstance.js";
+import {RemoteSettings} from "../remoteSettings.js";
 
 /**
  * Applies blocks to Pleroma / Akkoma instances.
@@ -20,7 +20,7 @@ export class PleromaRemote extends Remote {
     private readonly client: PleromaClient;
 
     constructor(
-        private readonly config: Config,
+        private readonly settings: RemoteSettings,
         public readonly host: string,
         token: string
     ) {
@@ -34,7 +34,7 @@ export class PleromaRemote extends Remote {
             return 'excluded';
         }
 
-        // Read the config
+        // Read the settings
         const {
             mrfSimpleSection,
             mrfSection,
@@ -153,7 +153,7 @@ export class PleromaRemote extends Remote {
             transparencyExclusions.push({ tuple: [block.host, ''] });
 
         // Save changes
-        if (!this.config.dryRun) {
+        if (!this.settings.dryRun) {
             await this.updateConfig({
                 configs: [
                     mrfSimpleSection,
@@ -182,7 +182,7 @@ export class PleromaRemote extends Remote {
     }
 
     async getBlocklist(): Promise<Block[]> {
-        // Read the config
+        // Read the settings
         const {
             federatedTimelineRemoval,
             reject,
@@ -225,7 +225,7 @@ export class PleromaRemote extends Remote {
     }
 
     private async getMRFSections() {
-        // Read config
+        // Read settings
         const instanceConfig = await this.getConfig();
         const mrfSimpleSection = findConfigSection(instanceConfig, ':pleroma', ':mrf_simple') as MRFSection;
         const mrfSection = findConfigSection(instanceConfig, ':pleroma', ':mrf') as MRFSection;

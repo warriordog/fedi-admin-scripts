@@ -1,12 +1,12 @@
 import {Config} from "./domain/config.js";
-import {Remote} from "./remote/Remote.js";
-import {Block, FederationLimit} from "./domain/block.js";
+import {Remote} from "../common/remote/Remote.js";
+import {Block, FederationLimit} from "../common/domain/block.js";
 import {readSource, Source} from "./source/source.js";
 import {AnnouncementBuilder} from "./announcement/AnnouncementBuilder.js";
 import {renderAnnouncement} from "./announcement/renderAnnouncement.js";
-import {Post} from "./domain/post.js";
-import {createRemote} from "./remote/createRemote.js";
-import {BlockAction, FollowRelation} from "./domain/blockResult.js";
+import {Post} from "../common/domain/post.js";
+import {createRemote} from "../common/remote/createRemote.js";
+import {BlockAction, FollowRelation} from "../common/domain/blockResult.js";
 
 export async function importBlocklist(config: Config): Promise<void> {
     const { remotes, blocks } = await setup(config);

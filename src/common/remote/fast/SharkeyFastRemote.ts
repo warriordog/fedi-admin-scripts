@@ -1,5 +1,5 @@
 import {SharkeyRemote} from "../standard/SharkeyRemote.js";
-import {SharkeyAdminMeta} from "../../../common/api/sharkey/sharkeyAdminMeta.js";
+import {SharkeyAdminMeta} from "../../api/sharkey/sharkeyAdminMeta.js";
 
 export class SharkeyFastRemote extends SharkeyRemote {
     protected sharkeyMeta?: SharkeyAdminMeta;

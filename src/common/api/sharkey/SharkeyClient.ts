@@ -63,7 +63,7 @@ export class SharkeyClient {
         query.limit = 100;
         query.offset = 0;
 
-        const pages: SharkeyInstance[][] = [];
+        const instances: SharkeyInstance[] = [];
         while (true) {
             const resp = await this.makeRequest('/api/federation/instances', query);
             if (!resp.ok) {
@@ -77,12 +77,19 @@ export class SharkeyClient {
                 break;
             }
 
-            // save and "slide over" to the next page
-            pages.push(page);
+            // Workaround for Sharkey bug:
+            // Re-fetch each instance to ensure that all fields are populated.
+            // TODO: remove this ASAP, it's very slow!
+            for (let instance of page) {
+                instance = await this.getInstance(instance.host) ?? instance;
+                instances.push(instance);
+            }
+
+            // "slide over" to the next page
             query.offset += query.limit;
         }
 
-        return pages.flat();
+        return instances;
     }
 
     private async makeRequest(endpoint: string, payload?: Record<string, unknown>): Promise<Response> {

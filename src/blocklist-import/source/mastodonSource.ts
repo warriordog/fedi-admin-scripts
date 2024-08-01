@@ -1,4 +1,4 @@
-import {Block, FederationLimit} from "../domain/block.js";
+import {Block, FederationLimit} from "../../common/domain/block.js";
 import {parseCSVFile} from "../../common/util/csv.js";
 import {basename} from 'path';
 

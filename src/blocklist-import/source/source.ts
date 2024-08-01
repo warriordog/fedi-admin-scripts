@@ -1,7 +1,7 @@
 import {SourceConfig} from "../domain/config.js";
-import {Block} from "../domain/block.js";
+import {Block} from "../../common/domain/block.js";
 import {readMastodonSource} from "./mastodonSource.js";
-import {Remote} from "../remote/Remote.js";
+import {Remote} from "../../common/remote/Remote.js";
 
 export type Source = SourceConfig | RemoteSource;
 export interface RemoteSource {

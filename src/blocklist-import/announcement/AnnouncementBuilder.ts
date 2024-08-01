@@ -1,7 +1,7 @@
 import {AnnouncementConfig} from "../../../config/importBlocklist.js";
-import {Remote} from "../remote/Remote.js";
+import {Remote} from "../../common/remote/Remote.js";
 import {Announcement, AnnouncementBody, AnnouncementSection} from "./announcement.js";
-import {Block} from "../domain/block.js";
+import {Block} from "../../common/domain/block.js";
 
 export class AnnouncementBuilder {
     constructor(

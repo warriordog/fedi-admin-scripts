@@ -25,6 +25,17 @@ This script is currently rather difficult to use, due to the lack of a proper au
 * You can set `dryRun` to `true` in order to test your configuration and connection settings. All blocks will be processed, but no changes will be saved to the instances.
 * If you get any kind of error like "unauthorized" or "unauthenticated", then check your access tokens. They may need to be replaced if much time has passed.
 
+## blocklist-download
+
+Using admin APIs, downloads the blocklist from any Sharkey, Pleroma, or Akkoma instance into a mastodon-style blocklist.
+Block details are mapped into mastodon's format using the same logic as import-blocklist.
+
+### Usage:
+
+Execute `npm run blocklist-download -- <save_path> <connection_string>`.
+`save_path` is the name of a file to contain the download blocklist.
+`connection_string` defines a connection to the remote instance, in `software://token@host` format.
+
 ## blocklist-diff
 
 Generate a simple diff between two mastodon-style blocklist files.

@@ -1,6 +1,6 @@
-import {PleromaConfig} from "../../../common/api/pleroma/PleromaConfig.js";
+import {PleromaConfig} from "../../api/pleroma/PleromaConfig.js";
 import {PleromaRemote} from "../standard/PleromaRemote.js";
-import {PleromaInstance} from "../../../common/api/pleroma/pleromaInstance.js";
+import {PleromaInstance} from "../../api/pleroma/pleromaInstance.js";
 
 export class PleromaFastRemote extends PleromaRemote {
     protected pleromaInstance?: PleromaInstance;

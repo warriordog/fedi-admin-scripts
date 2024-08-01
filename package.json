@@ -7,7 +7,7 @@
   "scripts": {
     "import-blocklist": "tsc -b && node dist/blocklist-import/importBlocklist.js",
     "pack-for-misskey": "tsc -b && node dist/pack-for-misskey/packForMisskey.js",
-    "blocklist-diff": "tsc -b && node dist/blocklist-diff/blocklistDiff.js"
+    "blocklist-diff": "tsc -b && node dist/blocklist-diff/blocklistDiff.js",
     "blocklist-download": "tsc -b && node dist/blocklist-download/blocklistDownload.js"
   },
   "keywords": [],

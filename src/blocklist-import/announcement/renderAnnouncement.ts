@@ -6,7 +6,7 @@ import {
     ListSection,
     TextSection
 } from "./announcement.js";
-import {Post} from "../domain/post.js";
+import {Post} from "../../common/domain/post.js";
 
 /**
  * Converts a semantic Announcement into a raw Post.

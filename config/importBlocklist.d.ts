@@ -1,4 +1,5 @@
-import {Block} from "../src/blocklist-import/domain/block.js";
+import {Block} from "../src/common/domain/block.js";
+import {RemoteConfig} from "../src/common/remote/createRemote.js";
 
 export interface Config {
     /**
@@ -177,26 +178,6 @@ export interface SourceConfig {
 }
 
 export type SourceType = 'mastodon';
-
-export interface RemoteConfig {
-    /**
-     * Type of software in use on the remote instance.
-     * Must be either "sharkey" or "pleroma".
-     */
-    type: RemoteType;
-
-    /**
-     * Domain / host name of the remote instance.
-     */
-    host: string;
-
-    /**
-     * Session token for a user with administrative permissions on this instance.
-     */
-    token: string;
-}
-
-export type RemoteType = 'sharkey' | 'pleroma' | 'akkoma';
 
 /**
  * Deeply-optional version of Config representing the config file schema.
