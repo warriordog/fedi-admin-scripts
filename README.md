@@ -25,6 +25,16 @@ This script is currently rather difficult to use, due to the lack of a proper au
 * You can set `dryRun` to `true` in order to test your configuration and connection settings. All blocks will be processed, but no changes will be saved to the instances.
 * If you get any kind of error like "unauthorized" or "unauthenticated", then check your access tokens. They may need to be replaced if much time has passed.
 
+## blocklist-diff
+
+Generate a simple diff between two mastodon-style blocklist files.
+The resulting CSV will contain every domain that appears in any list, along with the block severity for each list that contains it.
+
+### Usage:
+
+Execute `npm run blocklist-diff -- <diff_file> <source_1> <source_2> [source_3] [...]`.
+`diff_file` is the file to contain the generated diff, and all remaining parameters are blocklists to compare.
+
 ## follow-relations: SQL query for listing cross-server follow relationships
 
 This query is intended for use with Sharkey, although it should work with any Misskey-based instance. It will return a table of (follower, followee) rows where one side is a user from your local instance and the other is a user from one of a provided set of target instance(s).
