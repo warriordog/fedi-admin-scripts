@@ -1,4 +1,4 @@
-import {readFile} from "node:fs/promises";
+import {readFile, writeFile, appendFile} from "node:fs/promises";
 
 export interface CSVConfig {
     /**
@@ -40,7 +40,7 @@ export function parseCSVText<T extends string[]>(text: string, config?: CSVConfi
     if (hasHeader) {
         for (const column of firstRow) {
             // Validation - make sure that the columns actually *can* be mapped safely.
-            if (!/^[a-z_$][a-z0-9_$]*$/i.test(column)) {
+            if (!/^[a-z_$#][a-z0-9_$#]*$/i.test(column)) {
                 throw new Error(`Parsing error: column "${column}" has an invalid name (cannot be used as a JavaScript property)`);
             }
 
@@ -126,4 +126,48 @@ function parseCell(cell: string): string {
     }
 
     return cell;
+}
+
+export async function writeCSVFile(path: string, lines: readonly string[][]): Promise<void> {
+    // Verify input bounds
+    if (lines.length > 1) {
+        const expectedLength = lines[0].length;
+        for (let i = 1; i < lines.length; i++) {
+            const actualLength = lines[i].length;
+            if (actualLength !== expectedLength) {
+                throw new Error(`Serialization error: row ${i} has the wrong number of cells (expected ${expectedLength}, got ${actualLength})`);
+            }
+        }
+    }
+
+    // Clear file, because the remaining code uses appends only.
+    await writeFile(path, '', 'utf-8');
+
+    // Write all lines
+    let isFirstRow = true;
+    for (const line of lines) {
+        // Write line separator
+        if (!isFirstRow) {
+            await appendFile(path, '\n', 'utf-8');
+        }
+        isFirstRow = false;
+
+        let isFirstCell = true;
+        for (let cell of line) {
+            // Write cell separator
+            if (!isFirstCell) {
+                await appendFile(path, ',', 'utf-8');
+            }
+            isFirstCell = false;
+
+            // Escape cell
+            if (/[\r\n,"]/.test(cell)) {
+                cell = cell.replaceAll('"', '""');
+                cell = `"${cell}"`;
+            }
+
+            // Write cell
+            await appendFile(path, cell, 'utf-8');
+        }
+    }
 }
