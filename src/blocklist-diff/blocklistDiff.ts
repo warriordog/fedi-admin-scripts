@@ -1,4 +1,4 @@
-import {basename} from 'path';
+import {basename, extname} from 'path';
 import {parseCSVFile, writeCSVFile} from '../common/util/csv.js';
 
 // Read parameters
@@ -14,16 +14,15 @@ const sourcePaths = process.argv.slice(3);
 type Row = string[] & Record<string, string | undefined>;
 const sources = await Promise.all(sourcePaths
     .map(async p => ({
-        name: basename(p),
-        lines: await parseCSVFile<Row>(p, { header: true, columns: true  })
+        name: basename(p, extname(p)),
+        lines: await readCSVFile(p)
     }))
 );
 
 // Diff blocklists
-const domains = new Set(sources
-    .flatMap(s => s.lines
-        .map(l => (l['#domain'] || l.domain)?.toLowerCase() as string)
-        .filter(l => l)
+const domains = new Set(
+    sources.flatMap(s =>
+        Array.from(s.lines.keys())
     )
 );
 const blocks = Array
@@ -47,8 +46,27 @@ const results: string[][] = [
 ];
 await writeCSVFile(diffPath, results);
 
-function getSourceProperty(rows: Row[], domain: string, ...properties: string[]): string | undefined {
-    const row = rows.find(r => domain === (r['#domain'] || r.domain)?.toLowerCase());
+async function readCSVFile(path: string): Promise<Map<string, Row>> {
+    const lines = await parseCSVFile<Row>(path, { header: true, columns: true });
+
+    return lines.reduce((map, line, i) => {
+        const domain = (line['#domain'] || line.domain)?.toLowerCase();
+        if (!domain) {
+            console.warn(`Skipping line ${i} in ${path}: no "domain" or "#domain" column found`);
+            return map;
+        }
+
+        if (map.has(domain)) {
+            console.warn(`Skipping line ${i} in ${path}: domain ${domain} is duplicated in the list`);
+            return map;
+        }
+
+        return map.set(domain, line);
+    }, new Map<string, Row>());
+}
+
+function getSourceProperty(rows: Map<string, Row>, domain: string, ...properties: string[]): string | undefined {
+    const row = rows.get(domain);
 
     if (row) {
         for (const prop of properties) {
@@ -59,5 +77,5 @@ function getSourceProperty(rows: Row[], domain: string, ...properties: string[])
         }
     }
 
-    return undefined;;
+    return undefined;
 }
