@@ -157,11 +157,13 @@ export class SharkeyRemote extends Remote {
         // Lookup each list
         const { blockedHosts, silencedHosts } = await this.getMeta();
         const instances = mapUniqueInstances(
-            (await this.client.searchInstances({ suspended: true }))
-                .filter(i => isSuspended(i)),
-            await this.client.searchInstances({ silenced: true }),
-            await this.client.searchInstances({ blocked: true }),
-            await this.client.searchInstances({ nsfw: true })
+            await Promise.all([
+                this.client.searchInstances({ suspended: true })
+                    .then(instances => instances.filter(i => isSuspended(i))),
+                this.client.searchInstances({ silenced: true }),
+                this.client.searchInstances({ blocked: true }),
+                this.client.searchInstances({ nsfw: true })
+            ])
         );
 
         // Pivot from (type -> (host | instance)) to (host -> type)
@@ -228,7 +230,7 @@ function isUpToDate(instance: SharkeyInstance | null, meta: SharkeyAdminMeta, bl
     return true;
 }
 
-function mapUniqueInstances(...instances: SharkeyInstance[][]): Map<string, SharkeyInstance> {
+function mapUniqueInstances(instances: SharkeyInstance[][]): Map<string, SharkeyInstance> {
     const unique = new Map<string, SharkeyInstance>();
 
     for (const instance of instances.flat()) {
