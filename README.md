@@ -88,3 +88,17 @@ If you get an error on the `CREATE EXTENSION` line, check that `pg_trgm` is inst
 
 1. [Optional] If you are using `pg_trgm` for other purposes, then comment out the last `DROP EXTENSION` line.
 2. Execute [`drop-full-text-index.sql`](src/full-text-index/drop-full-text-index.sql) on the Sharkey database.
+
+## Systemd Utils: scripts and configuration for running Sharkey under Systemd
+
+This is a loosely-related collection of resources for servers running Sharkey under a Systemd environment.
+
+* `run-sharkey.sh` - helper script for activating Node Version Manager (NVM) under a service environment.
+  Call this instead of PNPM or Node to ensure that the selected version is activated.
+* `sharkey.web.service` - hardened Systemd unit for running only the web (API) process.
+* `sharkey.worker.service` - hardened Systemd unit for running only the queue workers.
+* `sharkey.target` - "wrapper" unit to manage the other Sharkey units as a group.
+* `sharkeyctl` - thin wrapper around Systemd to manage the split services.
+  Place it somewhere on the path and call it like any binary program.  
+* `sharkeyctl-sudoers` - sudoers file to grant basic service management rights to the Sharkey service account.
+  Useful for the `sharkeyctl` script.

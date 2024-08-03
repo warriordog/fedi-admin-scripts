@@ -1,0 +1,11 @@
+[Unit]
+Description=Sharkey meta-service
+Documentation=https://activitypub.software/TransFem-org/Sharkey/
+
+Requires=sharkey.web.service
+Requires=sharkey.worker.service
+# Uncomment if you're using ModShark
+#Wants=modshark.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,64 @@
+#!/bin/bash
+
+scriptVersion="1.0.0"
+
+command="help"
+target="sharkey.target"
+
+# Parse command
+if [[ -n $1 ]]; then
+  if [[ $1 = "start" || $1 = "stop" || $1 = "restart" || $1 = "status" || $1 = "help" || $1 = "version" ]]; then
+    command=$1
+  else
+    echo "Unknown command '$1' - if present, must be 'start', 'stop', 'restart', 'status', 'help', or 'version'."
+    exit 1
+  fi
+fi
+
+# Parse target
+if [[ -n $2 ]]; then
+  if [[ $2 = "all" ]]; then
+    target="sharkey.target"
+
+  elif [[ $2 = "web" ]]; then
+    target="sharkey.web"
+
+  elif [[ $2 = "worker" ]]; then
+    target="sharkey.worker"
+
+  elif [[ $2 = "modshark" ]]; then
+    target="modshark"
+
+  else
+    echo "Unknown target '$2' - if present, must be 'web', 'worker', 'modshark', or 'all'."
+    exit 1
+  fi
+fi
+
+# Execute command
+if [[ $command = "help" ]]; then
+  echo "SharkeyCTL - manage the Sharkey node."
+  echo "Usage: sharkeyctl <command> [target]"
+  echo ""
+  echo "Supported commands:"
+  echo "  start    - start the target"
+  echo "  stop     - stop the target"
+  echo "  restart  - restart the target"
+  echo "  status   - show status of the target"
+  echo "  version  - print the script version"
+  echo "  help     - print this help"
+  echo ""
+  echo "Supported targets:"
+  echo "  web      - control the API server"
+  echo "  worker   - control the queue workers"
+  echo "  modshark - control the modshark daemon"
+  echo "  all      - control all targets at once"
+  echo ""
+  echo "If not specified, the default target will be 'all'."
+  exit 0
+elif [[ $command = "version" ]]; then
+  echo $scriptVersion
+  exit 0
+else
+  sudo systemctl "$command" "$target"
+fi

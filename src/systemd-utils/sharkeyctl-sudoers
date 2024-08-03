@@ -1,0 +1,18 @@
+# Allow the Sharkey service account to manage its own services without a password.
+# Change the first line to the name of your service account.
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl start sharkey.target
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl start sharkey.web
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl start sharkey.worker
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl start modshark
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl restart sharkey.target
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl restart sharkey.web
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl restart sharkey.worker
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl restart modshark
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl stop sharkey.target
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl stop sharkey.web
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl stop sharkey.worker
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl stop modshark
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl status sharkey.target
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl status sharkey.web
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl status sharkey.worker
+sharkey ALL=(root:root) NOPASSWD: /usr/bin/systemctl status modshark

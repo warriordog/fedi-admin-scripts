@@ -1,0 +1,46 @@
+[Unit]
+Description=Sharkey web process
+Documentation=https://activitypub.software/TransFem-org/Sharkey/
+
+PartOf=sharkey.target
+After=network.target
+After=postgresql.service
+Wants=postgresql.service
+After=redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=calckey
+# Adjust these to match your installation dirctory.
+WorkingDirectory=/opt/sharkey
+ExecStart=/opt/sharkey/run-sharkey.sh
+Environment="NODE_ENV=production"
+Environment="MK_DISABLE_CLUSTERING=1"
+Environment="MK_ONLY_SERVER=1"
+TimeoutSec=60
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier="sharkey.web"
+Restart=always
+
+# [ Tuning - adjust performance numbers ]
+
+# Pin the process to a specific CPU.
+#CPUAffinity=0
+# Adjust the CPU priority. lower (negative) = greater priority, higher (positive) = lower priority.
+#Nice=-5
+
+# [ Hardening - please adjust for your system ]
+# Disable access to home directories. Disable this if Sharkey is installed in a home directory.
+InaccessiblePaths=/home
+# This should include the WorkingDirectory specified above.
+ReadWritePaths=/opt/sharkey
+ProtectSystem=strict
+PrivateTmp=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+NoNewPrivileges=true
