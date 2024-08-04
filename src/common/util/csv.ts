@@ -38,13 +38,8 @@ export function parseCSVText<T extends string[]>(text: string, config?: CSVConfi
     }
 
     if (hasHeader) {
+        // Security - prevent a variant of over-assignment where a column could shadow "length" or some other array property.
         for (const column of firstRow) {
-            // Validation - make sure that the columns actually *can* be mapped safely.
-            if (!/^[a-z_$#][a-z0-9_$#]*$/i.test(column)) {
-                throw new Error(`Parsing error: column "${column}" has an invalid name (cannot be used as a JavaScript property)`);
-            }
-
-            // Security - prevent a variant of over-assignment where a column could shadow "length" or some other array property.
             if (Reflect.has(firstRow, column)) {
                 throw new Error(`Parsing error: column "${column}" conflicts with an existing array property`);
             }
