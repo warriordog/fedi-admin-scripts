@@ -1,14 +1,19 @@
 import {basename, extname} from 'path';
 import {parseCSVFile, writeCSVFile} from '../common/util/csv.js';
 
-// Read parameters
-if (process.argv.length < 5) {
-    console.warn(`Please specify at least two sources.`);
+// Read diff path
+if (process.argv.length <= 2) {
     console.warn('Usage: npm run blocklist-diff -- <diff_file> <source_1> <source_2> [source_3] [...]');
     process.exit(1);
 }
 const diffPath = process.argv[2];
-const sourcePaths = process.argv.slice(3);
+
+// Read source paths
+const sourcePaths = Array.from(new Set(process.argv.slice(3)));
+if (sourcePaths.length < 2) {
+    console.warn(`Please specify at least two sources.`);
+    process.exit(1);
+}
 
 // Read source blocklists
 const sources = await Promise.all(sourcePaths
@@ -71,7 +76,8 @@ async function readBlocklist(path: string): Promise<Map<string, Block>> {
             return map;
         }
 
-        const severity = (line['#severity'] || line.severity)?.toLowerCase() || 'none';
+        // Some blocklists leave off the severity, in which case suspension is implied
+        const severity = (line['#severity'] || line.severity)?.toLowerCase() || 'suspend';
 
         return map.set(domain, {
             domain,
