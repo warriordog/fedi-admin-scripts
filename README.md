@@ -93,6 +93,20 @@ If you get an error on the `CREATE EXTENSION` line, check that `pg_trgm` is inst
 
 This is a loosely-related collection of resources for servers running Sharkey under a Systemd environment.
 
+### Requirements:
+
+As-written, these tools make some opinionated assumptions about the server environment:
+* Node is installed via NVM, which is itself installed at a user level.
+* Sharkey is built from source in `/opt/sharkey`.
+* All services run under a `sharkey` service account.
+* Bash is the default shell.
+* Sudo handles elevation.
+
+It is possible to use any of these under a different environment, but manual changes will be needed.
+Feel free to reach out or open an issue for assistance!
+
+### Included tools:
+
 * `run-sharkey.sh` - helper script for activating Node Version Manager (NVM) under a service environment.
   Call this instead of PNPM or Node to ensure that the selected version is activated.
 * `sharkey.web.service` - hardened Systemd unit for running only the web (API) process.
