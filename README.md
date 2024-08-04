@@ -116,3 +116,4 @@ Feel free to reach out or open an issue for assistance!
   Place it somewhere on the path and call it like any binary program.  
 * `sharkeyctl-sudoers` - sudoers file to grant basic service management rights to the Sharkey service account.
   Useful for the `sharkeyctl` script.
+* `update-sharkey` - simple script to easily update a from-source Sharkey installation.

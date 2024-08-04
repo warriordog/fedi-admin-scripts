@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Stop early on errors.
+# https://stackoverflow.com/questions/2870992/automatic-exit-from-bash-shell-script-on-error?noredirect=1
+set -e
+
+# Move to Sharkey installation directory.
+cd /opt/sharkey
+
+echo "Stopping sharkey..."
+sharkeyctl stop
+echo "Stopped."
+
+echo ""
+echo "Applying updates..."
+git fetch --recurse-submodules
+git pull --recurse-submodules
+pnpm run build
+pnpm run migrate
+echo "Applied."
+
+echo ""
+echo "Starting sharkey..."
+sharkeyctl start
+echo "Started."
+
+echo ""
+echo "Update complete."
