@@ -86,14 +86,34 @@ async function readBlocklist(path: string): Promise<Map<string, Block>> {
             return map;
         }
 
-        // Some blocklists leave off the severity, in which case suspension is implied
-        const severity = (line['#severity'] || line.severity)?.toLowerCase() || 'suspend';
+        const severity = parseBlockAction(line);
+        const block = { domain, severity } satisfies Block;
 
-        return map.set(domain, {
-            domain,
-            severity
-        });
+        return map.set(domain, block);
     }, new Map<string, Block>());
+}
+
+function parseBlockAction(row: Row): string {
+    // Most block actions are directly listed in the severity.
+    // Some blocklists leave off the severity field, in which case suspension is implied.
+    const severity = (row['#severity'] || row.severity)?.toLowerCase() || 'suspend';
+    if (severity !== 'none')
+        return severity;
+
+    // Other actions set severity to "none" and details in other columns
+    const otherAction =
+        row['#set_nsfw'] || row.set_nsfw ||
+        row['#reject_media'] || row.reject_media ||
+        row['#reject_reports'] || row.reject_reports ||
+        row['#reject_avatars'] || row.reject_avatars ||
+        row['#reject_banners'] || row.reject_banners ||
+        row['#reject_backgrounds'] || row.reject_backgrounds;
+    if (otherAction)
+        return 'filter';
+
+    // If we don't find *anything*, then there's actually no action.
+    // (shouldn't happen, but you never know)
+    return 'none';
 }
 
 /**
