@@ -39,19 +39,20 @@ const domains = Array.from(
 );
 const blocks = domains
     .map(domain => {
-        const key = getDomainKey(domain);
-
         const aliases = explodeDomain(domain);
         const flags = sources.map(s => getBlockSeverity(s.lines, aliases));
 
-        return [key, domain, ...flags] satisfies Diff;
+        const key = getDomainKey(domain);
+        const rating = getBlockRating(flags);
+
+        return [key, domain, rating, ...flags] satisfies Diff;
     })
     .sort((a, b) => a[0].localeCompare(b[0]));
 
 // Write result file
 const results = [
     // Header: key + domain + each source name
-    ['key', 'domain', ...sources.map(s => s.name)],
+    ['key', 'domain', 'rating', ...sources.map(s => s.name)],
 
     // Body
     ...blocks
@@ -59,7 +60,7 @@ const results = [
 await writeCSVFile(diffPath, results);
 
 /** Row of a CSV diff: key + domain + N flags (1 for each source) */
-type Diff = [ key: string, domain: string, ...flags: string[] ];
+type Diff = [ key: string, domain: string, rating: string, ...flags: string[] ];
 
 /** Row of a CSV blocklist */
 type Row = string[] & Record<string, string | undefined>;
@@ -136,4 +137,24 @@ function getDomainKey(domain: string): string {
         .split('.')
         .reverse()
         .join('.');
+}
+
+/**
+ * Returns the "rating" of the domain formatted for human readability.
+ * The rating is the percentage of sources that block the domain.
+ */
+function getBlockRating(flags: string[]): string {
+    if (flags.length < 1)
+        return "0%";
+
+    const blockCount = flags.reduce((sum, severity) => {
+        if (severity !== 'none')
+            sum++;
+
+        return sum;
+    }, 0);
+
+    const ratio = blockCount / flags.length;
+    const percent = ratio * 100;
+    return percent.toFixed() + '%';
 }
