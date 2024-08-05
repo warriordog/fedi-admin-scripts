@@ -1,4 +1,4 @@
-import {basename, extname} from 'path';
+import {basename, extname, resolve} from 'path';
 import {parseCSVFile, writeCSVFile} from '../common/util/csv.js';
 
 // Read diff path
@@ -9,7 +9,13 @@ if (process.argv.length <= 2) {
 const diffPath = process.argv[2];
 
 // Read source paths
-const sourcePaths = Array.from(new Set(process.argv.slice(3)));
+const sourcePaths = Array.from(
+    new Set(
+        process.argv
+            .slice(3)
+            .map(p => resolve(p))
+    )
+);
 if (sourcePaths.length < 2) {
     console.warn(`Please specify at least two sources.`);
     process.exit(1);
