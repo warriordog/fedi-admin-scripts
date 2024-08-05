@@ -38,25 +38,28 @@ const domains = Array.from(
     )
 );
 const blocks = domains
-    .sort()
-    .reduce((map, domain) => {
+    .map(domain => {
+        const key = getDomainKey(domain);
+
         const aliases = explodeDomain(domain);
         const flags = sources.map(s => getBlockSeverity(s.lines, aliases));
-        return map.set(domain, flags);
-    }, new Map<string, string[]>);
+
+        return [key, domain, ...flags] satisfies Diff;
+    })
+    .sort((a, b) => a[0].localeCompare(b[0]));
 
 // Write result file
-const results: string[][] = [
-    // Header: domain + each source name
-    ['domain', ...sources.map(s => s.name)],
+const results = [
+    // Header: key + domain + each source name
+    ['key', 'domain', ...sources.map(s => s.name)],
 
-    // Body: rows of domain +  flag for each source
-    ...Array
-        .from(blocks)
-        .map(r => r
-            .flat())
+    // Body
+    ...blocks
 ];
 await writeCSVFile(diffPath, results);
+
+/** Row of a CSV diff: key + domain + N flags (1 for each source) */
+type Diff = [ key: string, domain: string, ...flags: string[] ];
 
 /** Row of a CSV blocklist */
 type Row = string[] & Record<string, string | undefined>;
@@ -120,4 +123,17 @@ function getBlockSeverity(list: Map<string, Block>, domainAliases: string[]): st
     }
 
     return 'none';
+}
+
+/**
+ * Get a sortable "key" for the domain.
+ * The returned key is the reversed fully-qualified domain.
+ */
+function getDomainKey(domain: string): string {
+    // Flip the domain into "key" for semantic ordering.
+    // Not very efficient, but it works.
+    return domain
+        .split('.')
+        .reverse()
+        .join('.');
 }
