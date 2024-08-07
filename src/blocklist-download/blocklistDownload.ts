@@ -1,6 +1,7 @@
 // Read parameters
-import {createRemote, isRemoteType} from "../common/remote/createRemote.js";
+import {createRemote} from "../common/remote/createRemote.js";
 import {writeCSVFile} from "../common/util/csv.js";
+import {parseConnectionString} from "../common/util/connectionString.js";
 
 if (process.argv.length != 4) {
     console.warn('Usage: npm run blocklist-download -- <save_path> <connection_string>');
@@ -14,27 +15,12 @@ if (process.argv.length != 4) {
     console.warn('  - akkoma');
     process.exit(1);
 }
+
 const savePath = process.argv[2];
-const [_, software, token, host] = process.argv[3].match(/^(\w+):\/\/([^@]+)@([\w-.]+)$/) ?? [null, null, null, null];
-if (!software || !token || !host) {
-    console.warn('Connection string is invalid: software, token, and host are required.');
-    process.exit(1);
-}
-if (!isRemoteType(software)) {
-    console.warn(`Unsupported software: ${software}`);
-    process.exit(1);
-}
+const connection = parseConnectionString(process.argv[3]);
 
 // Connect to instance
-const remote = createRemote({
-    type: software,
-    host,
-    token
-}, {
-    fastMode: false,
-    dryRun: true,
-    preserveConnections: true
-});
+const remote = createRemote(connection);
 
 // Download blocklist
 const blocks = await remote.getBlocklist();

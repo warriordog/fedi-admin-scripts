@@ -3,25 +3,8 @@ import {SharkeyRemote} from "./standard/SharkeyRemote.js";
 import {PleromaFastRemote} from "./fast/PleromaFastRemote.js";
 import {PleromaRemote} from "./standard/PleromaRemote.js";
 import {Remote} from "./Remote.js";
-import {RemoteSettings} from "./remoteSettings.js";
-
-export interface RemoteConfig {
-    /**
-     * Type of software in use on the remote instance.
-     * Must be either "sharkey" or "pleroma".
-     */
-    type: RemoteType;
-
-    /**
-     * Domain / host name of the remote instance.
-     */
-    host: string;
-
-    /**
-     * Session token for a user with administrative permissions on this instance.
-     */
-    token: string;
-}
+import {defaultRemoteSettings} from "./remoteSettings.js";
+import {RemoteConnection} from "../util/connectionString.js";
 
 export type RemoteType = 'sharkey' | 'pleroma' | 'akkoma';
 
@@ -29,7 +12,7 @@ export function isRemoteType(type: string): type is RemoteType {
     return type === 'sharkey' || type === 'pleroma' || type === 'akkoma';
 }
 
-export function createRemote({type, host, token}: RemoteConfig, settings: RemoteSettings): Remote {
+export function createRemote({type, host, token}: RemoteConnection, settings = defaultRemoteSettings): Remote {
     if (type === 'sharkey') {
         return settings.fastMode
             ? new SharkeyFastRemote(settings, host, token)
