@@ -1,5 +1,8 @@
 import {basename, extname, resolve} from 'path';
 import {parseCSVFile, writeCSVFile} from '../common/util/csv.js';
+import {explodeDomain, getDomainKey} from "../common/util/domainUtils.js";
+import {Block} from "../common/domain/block.js";
+import {parseMastodonBlock} from "../blocklist-import/source/mastodonSource.js";
 
 // Read diff path
 if (process.argv.length <= 2) {
@@ -65,9 +68,6 @@ type Diff = [ key: string, domain: string, rating: string, ...flags: string[] ];
 /** Row of a CSV blocklist */
 type Row = string[] & Record<string, string | undefined>;
 
-/** Block entry from a list */
-type Block = { domain: string, severity: string };
-
 /**
  * Reads a CSV blocklist into a keyed dictionary of Domain => Block.
  */
@@ -75,60 +75,16 @@ async function readBlocklist(path: string): Promise<Map<string, Block>> {
     const lines = await parseCSVFile<Row>(path, { header: true, columns: true });
 
     return lines.reduce((map, line, i) => {
-        const domain = (line['#domain'] || line.domain)?.toLowerCase();
-        if (!domain) {
-            console.warn(`Skipping line ${i} in ${path}: no "domain" or "#domain" column found`);
-            return map;
-        }
+        const block = parseMastodonBlock(line);
+        const domain = block.host;
 
         if (map.has(domain)) {
             console.warn(`Skipping line ${i} in ${path}: domain ${domain} is duplicated in the list`);
             return map;
         }
 
-        const severity = parseBlockAction(line);
-        const block = { domain, severity } satisfies Block;
-
         return map.set(domain, block);
     }, new Map<string, Block>());
-}
-
-function parseBlockAction(row: Row): string {
-    // Most block actions are directly listed in the severity.
-    // Some blocklists leave off the severity field, in which case suspension is implied.
-    const severity = (row['#severity'] || row.severity)?.toLowerCase() || 'suspend';
-    if (severity !== 'none')
-        return severity;
-
-    // Other actions set severity to "none" and details in other columns
-    const otherAction =
-        row['#set_nsfw'] || row.set_nsfw ||
-        row['#reject_media'] || row.reject_media ||
-        row['#reject_reports'] || row.reject_reports ||
-        row['#reject_avatars'] || row.reject_avatars ||
-        row['#reject_banners'] || row.reject_banners ||
-        row['#reject_backgrounds'] || row.reject_backgrounds;
-    if (otherAction)
-        return 'filter';
-
-    // If we don't find *anything*, then there's actually no action.
-    // (shouldn't happen, but you never know)
-    return 'none';
-}
-
-/**
- * Explodes a domain name into a list of base domains.
- * The returned list includes the original domain, and is ordered by decreasing specificity.
- */
-function *explodeDomain(domain: string): Iterable<string> {
-    yield domain;
-
-    while (domain.includes('.')) {
-        domain = domain.substring(domain.indexOf('.') + 1);
-        if (domain) {
-            yield domain;
-        }
-    }
 }
 
 /**
@@ -145,19 +101,6 @@ function getBlockSeverity(list: Map<string, Block>, domain: string): string {
     }
 
     return 'none';
-}
-
-/**
- * Get a sortable "key" for the domain.
- * The returned key is the reversed fully-qualified domain.
- */
-function getDomainKey(domain: string): string {
-    // Flip the domain into "key" for semantic ordering.
-    // Not very efficient, but it works.
-    return domain
-        .split('.')
-        .reverse()
-        .join('.');
 }
 
 /**

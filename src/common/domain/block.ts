@@ -6,7 +6,7 @@ export interface Block {
     privateReason?: string;
     redact?: boolean;
 
-    limitFederation?: FederationLimit;
+    severity: FederationLimit;
     setNSFW?: boolean;
 
     rejectMedia?: boolean;
@@ -16,4 +16,4 @@ export interface Block {
     rejectReports?: boolean;
 }
 
-export type FederationLimit = 'suspend' | 'silence' | 'unlist' | 'ghost';
+export type FederationLimit = 'suspend' | 'silence' | 'unlist' | 'ghost' | 'filter' | 'none';

@@ -138,7 +138,7 @@ async function loadBlocks(config: Config, sources: Source[]): Promise<Block[]> {
                 block.privateReason = mergeReasons(block.privateReason, duplicateBlock.privateReason);
                 block.redact ||= duplicateBlock.redact;
 
-                block.limitFederation = mergeLimits(block.limitFederation, duplicateBlock.limitFederation);
+                block.severity = mergeLimits(block.severity, duplicateBlock.severity);
                 block.setNSFW ||= duplicateBlock.setNSFW;
 
                 block.rejectMedia ||= duplicateBlock.rejectMedia;
@@ -164,15 +164,16 @@ function mergeReasons(first: string | undefined, second: string | undefined): st
     return first || second;
 }
 
-function mergeLimits(first: FederationLimit | undefined, second: FederationLimit | undefined): FederationLimit | undefined {
-    // suspend > silence > unlist > disconnect > nothing
+function mergeLimits(first: FederationLimit, second: FederationLimit): FederationLimit {
+    // suspend > silence > unlist > ghost > filter > none
 
     if (first === 'suspend' || second === 'suspend') return 'suspend';
     if (first === 'silence' || second === 'silence') return 'silence';
     if (first === 'unlist' || second === 'unlist') return 'unlist';
     if (first === 'ghost' || second === 'ghost') return 'ghost';
+    if (first === 'filter' || second === 'filter') return 'filter';
 
-    return undefined;
+    return 'none';
 }
 
 async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: Block[]): Promise<void> {
@@ -269,7 +270,7 @@ async function importBlocksToRemotes(config: Config, remotes: Remote[], blocks: 
 
 function getBlockActions(block: Block): string[] {
     const actions: string[] = [];
-    if (block.limitFederation) actions.push(block.limitFederation);
+    if (block.severity) actions.push(block.severity);
     if (block.setNSFW) actions.push('set NSFW');
     if (block.rejectMedia) actions.push('reject media');
     if (block.rejectAvatars) actions.push('reject avatars');

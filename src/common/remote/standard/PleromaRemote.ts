@@ -30,7 +30,7 @@ export class PleromaRemote extends Remote {
 
     async applyBlock(block: Block): Promise<PartialBlockResult> {
         // Pleroma can't disconnect without a full suspension
-        if (block.limitFederation === 'ghost') {
+        if (block.severity === 'ghost') {
             return 'excluded';
         }
 
@@ -77,9 +77,9 @@ export class PleromaRemote extends Remote {
         const hasExistingBlock = isUnlisted || isSuspended || isSilenced || isMediaRejected || isAvatarRejected || isBannerRejected || isBackgroundRejected || isSetNSFW || isReportRejected || isTransparencyExcluded;
 
         // map the federation limit into individuals flags
-        const isSuspend = block.limitFederation === 'suspend';
-        const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
-        const isUnlist = block.limitFederation === 'suspend' || block.limitFederation === 'silence' || block.limitFederation === 'unlist';
+        const isSuspend = block.severity === 'suspend';
+        const isSilence = block.severity === 'suspend' || block.severity === 'silence';
+        const isUnlist = block.severity === 'suspend' || block.severity === 'silence' || block.severity === 'unlist';
 
         // Compute changes
         const doUnlist = isUnlist && !isUnlisted;
@@ -198,30 +198,42 @@ export class PleromaRemote extends Remote {
 
         // Pivot from (type -> [host, reason]) to (host -> [type[], reason])
         const allHosts = getAllHosts(federatedTimelineRemoval, reject, followersOnly, mediaRemoval, avatarRemoval, bannerRemoval, backgroundRemoval, mediaNSFW, reportRemoval, transparencyExclusions);
-        return allHosts.map(host => ({
-            host,
-            sources: [ this.host ],
+        return allHosts.map(host => {
+            const setNSFW = isInTuple(host, mediaNSFW);
+            const rejectMedia = isInTuple(host, mediaRemoval);
+            const rejectAvatars = isInTuple(host, avatarRemoval);
+            const rejectBanners = isInTuple(host, bannerRemoval);
+            const rejectBackgrounds = isInTuple(host, backgroundRemoval);
+            const rejectReports = isInTuple(host, bannerRemoval);
+            const hasFilter = setNSFW || rejectMedia || rejectAvatars || rejectBanners || rejectBackgrounds || rejectReports;
 
-            publicReason: combineTuples(host, federatedTimelineRemoval, reject, followersOnly, mediaRemoval, avatarRemoval, bannerRemoval, backgroundRemoval, mediaNSFW, reportRemoval, transparencyExclusions),
-            privateReason: getTupleValue(host, transparencyExclusions),
-            redact: isInTuple(host, transparencyExclusions),
+            return {
+                host,
+                sources: [this.host],
 
-            limitFederation:
-                isInTuple(host, reject)
-                    ? 'suspend'
-                    : isInTuple(host, followersOnly)
-                        ? 'silence'
-                        : isInTuple(host, federatedTimelineRemoval)
-                            ? 'unlist'
-                            : undefined,
-            setNSFW: isInTuple(host, mediaNSFW),
+                publicReason: combineTuples(host, federatedTimelineRemoval, reject, followersOnly, mediaRemoval, avatarRemoval, bannerRemoval, backgroundRemoval, mediaNSFW, reportRemoval, transparencyExclusions),
+                privateReason: getTupleValue(host, transparencyExclusions),
+                redact: isInTuple(host, transparencyExclusions),
 
-            rejectMedia: isInTuple(host, mediaRemoval),
-            rejectAvatars: isInTuple(host, avatarRemoval),
-            rejectBanners: isInTuple(host, bannerRemoval),
-            rejectBackgrounds: isInTuple(host, backgroundRemoval),
-            rejectReports: isInTuple(host, bannerRemoval)
-        }));
+                severity:
+                    isInTuple(host, reject)
+                        ? 'suspend'
+                        : isInTuple(host, followersOnly)
+                            ? 'silence'
+                            : isInTuple(host, federatedTimelineRemoval)
+                                ? 'unlist'
+                                : hasFilter
+                                    ? 'filter'
+                                    : 'none',
+
+                setNSFW,
+                rejectMedia,
+                rejectAvatars,
+                rejectBanners,
+                rejectBackgrounds,
+                rejectReports
+            };
+        });
     }
 
     private async getMRFSections() {

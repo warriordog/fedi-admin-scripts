@@ -26,14 +26,14 @@ export class SharkeyRemote extends Remote {
 
     async applyBlock(block: Block): Promise<PartialBlockResult> {
         // Sharkey can't unlist without a full suspension
-        if (block.limitFederation === 'unlist') {
+        if (block.severity === 'unlist') {
             return 'excluded';
         }
 
         // map the federation limit into individuals flags
-        const isSuspend = block.limitFederation === 'suspend';
-        const isSilence = block.limitFederation === 'suspend' || block.limitFederation === 'silence';
-        const isGhost = block.limitFederation === 'suspend' || block.limitFederation === 'ghost';
+        const isSuspend = block.severity === 'suspend';
+        const isSilence = block.severity === 'suspend' || block.severity === 'silence';
+        const isGhost = block.severity === 'suspend' || block.severity === 'ghost';
 
         // Get current block status
         const instance = await this.client.getInstance(block.host);
@@ -176,12 +176,12 @@ export class SharkeyRemote extends Remote {
                 return {
                     host,
                     sources: [this.host],
-                    limitFederation:
+                    severity:
                         blockedHosts.includes(host)
                             ? 'suspend'
                             : silencedHosts.includes(host)
                                 ? 'silence'
-                                : undefined
+                                : 'none'
                 };
             }
 
@@ -191,14 +191,16 @@ export class SharkeyRemote extends Remote {
                 sources: [this.host],
 
                 privateReason: instance.moderationNote ?? undefined,
-                limitFederation:
+                severity:
                     instance.isBlocked
                         ? 'suspend'
                         : instance.isSilenced
                             ? 'silence'
                             : instance.isSuspended
                                 ? 'ghost'
-                                : undefined,
+                                : instance.isNSFW
+                                    ? 'filter'
+                                    : 'none',
                 setNSFW: instance.isNSFW
             });
         });

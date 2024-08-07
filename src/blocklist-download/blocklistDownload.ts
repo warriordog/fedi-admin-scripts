@@ -2,6 +2,7 @@
 import {createRemote} from "../common/remote/createRemote.js";
 import {writeCSVFile} from "../common/util/csv.js";
 import {parseConnectionString} from "../common/util/connectionString.js";
+import {compareBlocks} from "../common/blockUtils.js";
 
 if (process.argv.length != 4) {
     console.warn('Usage: npm run blocklist-download -- <save_path> <connection_string>');
@@ -24,14 +25,14 @@ const remote = createRemote(connection);
 
 // Download blocklist
 const blocks = await remote.getBlocklist();
-blocks.sort((a, b) => a.host.localeCompare(b.host));
+blocks.sort(compareBlocks);
 
 // Write blocklist
 const blocklist = [
     ['#domain', '#severity', '#reject_media', '#reject_reports', '#public_comment', '#obfuscate', '#private_comment', '#set_nsfw', '#reject_avatars', '#reject_banners', '#reject_backgrounds'],
     ...blocks.map(b => ([
         b.host,
-        b.limitFederation || 'none',
+        b.severity || 'none',
         b.rejectMedia ? 'TRUE' : 'FALSE',
         b.rejectReports ? 'TRUE' : 'FALSE',
         b.publicReason ?? '',

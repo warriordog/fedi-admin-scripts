@@ -52,19 +52,19 @@ export class AnnouncementBuilder {
     }
 
     private addSuspendedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been suspended (completely defederated)', b => b.limitFederation === 'suspend');
+        this.addGroup(body, blocks, 'have been suspended (completely defederated)', b => b.severity === 'suspend');
     }
 
     private addSilencedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been silenced (hidden from all except followers)', b => b.limitFederation === 'silence');
+        this.addGroup(body, blocks, 'have been silenced (hidden from all except followers)', b => b.severity === 'silence');
     }
 
     private addUnlistedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been unlisted (removed from global timeline)', b => b.limitFederation === 'unlist');
+        this.addGroup(body, blocks, 'have been unlisted (removed from global timeline)', b => b.severity === 'unlist');
     }
 
     private addGhostedGroup(body: AnnouncementSection[], blocks: Block[]): void {
-        this.addGroup(body, blocks, 'have been ghosted (will no longer receive posts from this instance)', b => b.limitFederation === 'ghost');
+        this.addGroup(body, blocks, 'have been ghosted (will no longer receive posts from this instance)', b => b.severity === 'ghost');
     }
 
     private addSetNSFWGroup(body: AnnouncementSection[], blocks: Block[]): void {
