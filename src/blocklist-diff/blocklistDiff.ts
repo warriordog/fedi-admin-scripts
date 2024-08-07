@@ -44,7 +44,8 @@ const blocks = domains
         const key = getDomainKey(domain);
         const rating = getBlockRating(flags);
 
-        return [key, domain, rating, ...flags] satisfies Diff;
+        const diff: Diff = [key, domain, rating, ...flags];
+        return diff;
     })
     .sort((a, b) => a[0].localeCompare(b[0]));
 
