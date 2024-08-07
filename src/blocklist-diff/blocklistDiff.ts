@@ -39,8 +39,7 @@ const domains = Array.from(
 );
 const blocks = domains
     .map(domain => {
-        const aliases = explodeDomain(domain);
-        const flags = sources.map(s => getBlockSeverity(s.lines, aliases));
+        const flags = sources.map(s => getBlockSeverity(s.lines, domain));
 
         const key = getDomainKey(domain);
         const rating = getBlockRating(flags);
@@ -120,24 +119,25 @@ function parseBlockAction(row: Row): string {
  * Explodes a domain name into a list of base domains.
  * The returned list includes the original domain, and is ordered by decreasing specificity.
  */
-function explodeDomain(domain: string): string[] {
-    const aliases = [ domain ];
+function *explodeDomain(domain: string): Iterable<string> {
+    yield domain;
+
     while (domain.includes('.')) {
         domain = domain.substring(domain.indexOf('.') + 1);
         if (domain) {
-            aliases.push(domain);
+            yield domain;
         }
     }
-    return aliases;
 }
 
 /**
  * Finds a blocked domain by aliases (base domain list) and returns the severity.
  * Defaults to "none" if the block is not in the list.
  */
-function getBlockSeverity(list: Map<string, Block>, domainAliases: string[]): string {
-    for (const domain of domainAliases) {
-        const block = list.get(domain);
+function getBlockSeverity(list: Map<string, Block>, domain: string): string {
+    const aliases = explodeDomain(domain);
+    for (const alias of aliases) {
+        const block = list.get(alias);
         if (block) {
             return block.severity;
         }
