@@ -117,3 +117,14 @@ Feel free to reach out or open an issue for assistance!
 * `sharkeyctl-sudoers` - sudoers file to grant basic service management rights to the Sharkey service account.
   Useful for the `sharkeyctl` script.
 * `update-sharkey` - simple script to easily update a from-source Sharkey installation.
+
+## bulk-refresh-users: Refresh all known remote users
+
+Exactly what it sounds like - execute "refresh remote user data" for every remote user in the instance database.
+Respects rate limits and ignore fetch errors, while also skipping suspended users for performance.
+
+### Usage:
+
+Follow the instructions in [bulk-refresh-users.mjs](src/bulk-refresh-users/bulk-refresh-users.mjs) to fill out the required options, then execute the script with `npm run bulk-refresh-users`.
+Server load will be greatly increased if running at the max rate, so be prepared for a period of extended service degradation!
+It's normal for this process to take several hours, especially if no user filters are selected.
