@@ -1,9 +1,10 @@
 {
   "name": "fedi-admin-scripts",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "description": "",
-  "main": "index.js",
+  "description": "Small collection of scripts, tools, and queries meant for use by fediverse system administrators.",
+  "author": "Hazelnoot",
   "scripts": {
     "import-blocklist": "tsc -b && node dist/blocklist-import/importBlocklist.js",
     "pack-for-misskey": "tsc -b && node dist/pack-for-misskey/packForMisskey.js",
@@ -11,9 +12,7 @@
     "blocklist-download": "tsc -b && node dist/blocklist-download/blocklistDownload.js",
     "bulk-refresh-users": "node src/bulk-refresh-users/bulk-refresh-users.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "GPLv3",
   "devDependencies": {
     "@types/node": "^20.11.28",
     "typescript": "^5.4.2",
