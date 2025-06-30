@@ -16,9 +16,9 @@ const usersFilter = {
 };
 
 // 4. (optional) Set minimum time in milliseconds between requests to update a user.
-// The current Sharkey release supports a maximum of 2 calls per second (500 ms) with default rate limits.
+// The current Sharkey release supports a maximum of 4 calls per second (250 ms) with default rate limits.
 // This can be increased to slow down the process, and therefore reduce server load.
-const requestIntervalMs = 500;
+const requestIntervalMs = 250;
 
 // 5. (optional) Resume an earlier failed run.
 // If the script exited early (such as from network trouble), then you can resume where you left off by adjusting this value.
