@@ -18,13 +18,20 @@ const usersFilter = {
 // 4. (optional) Set minimum time in milliseconds between requests to update a user.
 // The current Sharkey release supports a maximum of 4 calls per second (250 ms) with default rate limits.
 // This can be increased to slow down the process, and therefore reduce server load.
+const requestConcurrency = 4;
 const requestIntervalMs = 250;
 
 // 5. (optional) Resume an earlier failed run.
 // If the script exited early (such as from network trouble), then you can resume where you left off by adjusting this value.
 // Scroll back up in the previous output to the last instance of "Updating page from offset ####:" and place that number here.
 // The script will resume from that point.
-const initialOffset = 0;
+
+// 6. (optional) Retry failed requests.
+// If an API call fails with a network error, then it will be retried.
+// You may configure the retry behavior here.
+const retryLimit = 3;
+const retryBackoff = 1;
+const retryStatuses = [429, 501, 502, 503];
 
 // ==== Stop here! Don't touch anything else! ====
 
@@ -54,6 +61,7 @@ try {
  * @property {string} id
  * @property {string} host
  * @property {string} username
+ * @property {boolean} isSuspended
  */
 
 /**
@@ -62,31 +70,51 @@ try {
  * @param page {User[]}
  * @returns {Promise<void>}
  */
-function updateUsersAtRate(page) {
-	return new Promise((resolve, reject) => {
-		const interval = setInterval(async () => {
-			try {
-				const res = await updateNextUser(page);
-				if (!res) {
-					clearInterval(interval);
-					resolve();
-				}
-			} catch (err) {
-				reject(err);
+async function updateUsersAtRate(page) {
+	const controller = new AbortController();
+	const promises = [];
+
+	async function thread() {
+		let lastStartedAt = 0;
+		while (page.length > 0 && !controller.signal.aborted) {
+			// Wait for next slot
+			const nextSlotStart = lastStartedAt + requestIntervalMs;
+			const timeToWait = nextSlotStart - Date.now();
+			await timeout(timeToWait, controller.signal);
+
+			// Track run
+			lastStartedAt = Date.now();
+
+			// Execute
+			const success = await updateNextUser(page, controller.signal);
+			if (!success) {
+				controller.abort('aborting');
 			}
-		}, requestIntervalMs);
-	});
+		}
+	}
+
+	for (let i = 0; i < requestConcurrency; i++) {
+		promises.push(thread());
+	}
+
+	await Promise.all(promises);
 }
 
 /**
  * @param {User[]} page
+ * @param {AbortSignal} [signal] Optional abort signal
  * @returns {Promise<boolean>}
  */
-async function updateNextUser(page) {
+async function updateNextUser(page, signal) {
 	const user = page.shift();
 	if (!user) return false;
 
-	await api('federation/update-remote-user', { userId: user.id })
+	if (user.isSuspended) {
+		console.log(`Not updating user ${user.id} (${user.username}@${user.host}): user is suspended`);
+		return true;
+	}
+
+	await api('federation/update-remote-user', { userId: user.id }, signal)
 		.then(() => console.log(`Successfully updated user ${user.id} (${user.username}@${user.host})`))
 		.catch(err => console.log(`Failed to update user ${user.id} (${user.username}@${user.host}):`, err))
 	;
@@ -97,10 +125,11 @@ async function updateNextUser(page) {
  * Makes a POST request to Sharkey's API with automatic credentials and rate limit support.
  * @param {string} endpoint API endpoint to call
  * @param {unknown} [body] Optional object to send as API request payload
- * @param {boolean} [retry] Do not use - for retry purposes only
+ * @param {AbortSignal} [signal] Optional abort signal
+ * @param {number} [attempt] Do not use - for retry purposes only
  * @returns {Promise<unknown>}
  */
-async function api(endpoint, body = {}, retry = false) {
+async function api(endpoint, body = {}, signal, attempt = 1) {
 	try {
 		const res = await fetch(`${instance}/api/${endpoint}`, {
 			method: 'POST',
@@ -113,11 +142,11 @@ async function api(endpoint, body = {}, retry = false) {
 		});
 
 		// Check for rate limit
-		if (res.status === 429 && !retry) {
+		if (retryStatuses.includes(res.status) && attempt < retryLimit) {
 			const reset = res.headers.get('X-RateLimit-Reset');
-			const delay = reset ? Number.parseFloat(reset) : 1;
-			await new Promise(resolve => setTimeout(resolve, delay * 1000));
-			return await api(endpoint, body, true);
+			const delay = reset ? Number.parseFloat(reset) : retryBackoff;
+			await timeout(delay * 1000, signal);
+			return await api(endpoint, body, attempt + 1);
 		}
 
 		// Fucky way of handling any possible response through one code path
@@ -133,4 +162,28 @@ async function api(endpoint, body = {}, retry = false) {
 	} catch (err) {
 		throw String(err);
 	}
+}
+
+/**
+ * Returns a promise that resolves after the specified time, or rejects when the given signal aborts
+ * @param {number} timeToWait
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<void>}
+ */
+async function timeout(timeToWait, signal) {
+	if (timeToWait < 1) {
+		return;
+	}
+
+	await new Promise((resolve, reject) => {
+		if (signal) {
+			signal.addEventListener('abort', reject);
+		}
+		setTimeout(() => {
+			if (signal) {
+				signal.removeEventListener('abort', reject);
+			}
+			resolve();
+		}, timeToWait);
+	});
 }
