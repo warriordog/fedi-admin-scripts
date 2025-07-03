@@ -38,6 +38,7 @@ const retryStatuses = [429, 501, 502, 503];
 
 try {
 	for (let offset = initialOffset;;) {
+	try {
 		console.log(`Updating page from offset ${offset}:`);
 		const page = await api('admin/show-users', {
 			offset,
@@ -52,9 +53,16 @@ try {
 
 		// Process the page at the configured rate
 		await updateUsersAtRate(page);
+	} catch (err) {
+		console.error('Failed with unhandled error: ', err);
+
+		if (offset >= 100) {
+			console.error(`Terminating at offset ${offset}. Last successful offset: ${offset - 100}.`);
+		} else {
+			console.error(`Terminating at offset ${offset}.`);
+		}
+		break;
 	}
-} catch (err) {
-	console.error('Failed with unhandled error: ', err);
 }
 
 /**
