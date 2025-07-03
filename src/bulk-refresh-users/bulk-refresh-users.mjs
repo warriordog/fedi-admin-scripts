@@ -18,7 +18,6 @@ const usersFilter = {
 // 4. (optional) Set minimum time in milliseconds between requests to update a user.
 // The current Sharkey release supports a maximum of 4 calls per second (250 ms) with default rate limits.
 // This can be increased to slow down the process, and therefore reduce server load.
-const requestConcurrency = 4;
 const requestIntervalMs = 250;
 
 // 5. (optional) Resume an earlier failed run.
@@ -36,8 +35,41 @@ const retryStatuses = [429, 501, 502, 503];
 
 // ==== Stop here! Don't touch anything else! ====
 
-try {
-	for (let offset = initialOffset;;) {
+class ResponseError extends Error {
+	/**
+	 * @param {Response} response
+	 * @param {string} [message]
+	 */
+	constructor(response, message) {
+		super(message);
+		this.response = response;
+	}
+}
+
+class StatusError extends ResponseError {
+	/**
+	 * @param {Response} response
+	 * @param {string} [message]
+	 */
+	constructor(response, message) {
+		super(response, message ?? `Request failed with status ${response.status} ${response.statusText}`);
+		this.statusCode = response.status;
+		this.statusText = response.statusText;
+	}
+}
+
+class ContentTypeError extends ResponseError {
+	/**
+	 * @param {Response} response
+	 * @param {string} [message]
+	 */
+	constructor(response, message) {
+		super(response, message ?? `Unsupported content-type ${response.headers.get('Content-Type')}`);
+		this.contentType = response.headers.get('Content-Type');
+	}
+}
+
+for (let offset = initialOffset;;) {
 	try {
 		console.log(`Updating page from offset ${offset}:`);
 		const page = await api('admin/show-users', {
@@ -80,97 +112,95 @@ try {
  * @returns {Promise<void>}
  */
 async function updateUsersAtRate(page) {
-	const controller = new AbortController();
 	const promises = [];
+	let delay = 0;
 
-	async function thread() {
-		let lastStartedAt = 0;
-		while (page.length > 0 && !controller.signal.aborted) {
-			// Wait for next slot
-			const nextSlotStart = lastStartedAt + requestIntervalMs;
-			const timeToWait = nextSlotStart - Date.now();
-			await timeout(timeToWait, controller.signal);
+	while (page.length > 0) {
+		// Temporary delays like a rate limit
+		await timeout(delay);
+		delay = 0;
 
-			// Track run
-			lastStartedAt = Date.now();
+		const user = page.shift();
+		const promise = updateNextUser(user).catch(err => {
+			// Check for retryable errors
+			if (err instanceof StatusError && retryStatuses.includes(err.statusCode)) {
+				const reset = err.response.headers.get('X-RateLimit-Reset');
+				const backoff = reset ? Number.parseFloat(reset) : retryBackoff;
 
-			// Execute
-			const success = await updateNextUser(page, controller.signal);
-			if (!success) {
-				controller.abort('aborting');
+				delay += backoff;
+				page.push(user);
 			}
-		}
+
+			// Check for network errors
+			if (err instanceof Error && err.name === 'FetchError') {
+				delay += retryBackoff;
+				page.push(user);
+			}
+
+			// TODO limit retires
+		});
+		promises.push(promise);
+
+		// Standard delay between calls
+		await timeout(requestIntervalMs);
 	}
 
-	for (let i = 0; i < requestConcurrency; i++) {
-		promises.push(thread());
-	}
-
-	await Promise.all(promises);
+	await Promise.allSettled(promises);
 }
 
 /**
- * @param {User[]} page
- * @param {AbortSignal} [signal] Optional abort signal
- * @returns {Promise<boolean>}
+ * @param {User} user
+ * @returns {Promise<void>}
  */
-async function updateNextUser(page, signal) {
-	const user = page.shift();
-	if (!user) return false;
-
+async function updateNextUser(user) {
 	if (user.isSuspended) {
 		console.log(`Not updating user ${user.id} (${user.username}@${user.host}): user is suspended`);
-		return true;
+		return;
 	}
 
-	await api('federation/update-remote-user', { userId: user.id }, signal)
-		.then(() => console.log(`Successfully updated user ${user.id} (${user.username}@${user.host})`))
-		.catch(err => console.log(`Failed to update user ${user.id} (${user.username}@${user.host}):`, err))
-	;
-	return true;
+	try {
+		await api('federation/update-remote-user', { userId: user.id });
+		console.log(`Successfully updated user ${user.id} (${user.username}@${user.host})`);
+	} catch (err) {
+		console.log(`Failed to update user ${user.id} (${user.username}@${user.host}):`, String(err));
+		throw err;
+	}
 }
 
 /**
  * Makes a POST request to Sharkey's API with automatic credentials and rate limit support.
+ * @template T return type
  * @param {string} endpoint API endpoint to call
  * @param {unknown} [body] Optional object to send as API request payload
- * @param {AbortSignal} [signal] Optional abort signal
- * @param {number} [attempt] Do not use - for retry purposes only
- * @returns {Promise<unknown>}
+ * @returns {Promise<T>}
  */
-async function api(endpoint, body = {}, signal, attempt = 1) {
-	try {
-		const res = await fetch(`${instance}/api/${endpoint}`, {
-			method: 'POST',
-			headers: {
-				Accept: 'application/json',
-				Authorization: `Bearer ${token}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(body),
-		});
+async function api(endpoint, body = {}) {
+	const res = await fetch(`${instance}/api/${endpoint}`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			Authorization: `Bearer ${token}`,
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(body),
+	});
 
-		// Check for rate limit
-		if (retryStatuses.includes(res.status) && attempt < retryLimit) {
-			const reset = res.headers.get('X-RateLimit-Reset');
-			const delay = reset ? Number.parseFloat(reset) : retryBackoff;
-			await timeout(delay * 1000, signal);
-			return await api(endpoint, body, attempt + 1);
-		}
-
-		// Fucky way of handling any possible response through one code path
-		if (res.ok) {
-			const contentType = res.headers.get('Content-Type');
-			if (!contentType) return undefined;
-			if (contentType.startsWith('application/json')) return await res.json();
-			if (contentType.startsWith('text/')) return await res.text();
-			throw `Unsupported Content-Type: ${contentType}`
-		} else {
-			throw `${res.status} ${res.statusText}`;
-		}
-	} catch (err) {
-		throw String(err);
+	// Errors
+	if (!res.ok) {
+		throw new StatusError(res);
 	}
+
+	// No content
+	if (res.status === 204) {
+		return undefined;
+	}
+
+	// Fucky way of handling any possible response through one code path
+	const contentType = res.headers.get('Content-Type');
+	if (!contentType) return undefined;
+	if (contentType.startsWith('application/json')) return await res.json();
+	if (contentType.startsWith('text/')) return await res.text();
+	throw new ContentTypeError(res);
 }
 
 /**
