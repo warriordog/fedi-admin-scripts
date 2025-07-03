@@ -25,6 +25,7 @@ const requestIntervalMs = 250;
 // If the script exited early (such as from network trouble), then you can resume where you left off by adjusting this value.
 // Scroll back up in the previous output to the last instance of "Updating page from offset ####:" and place that number here.
 // The script will resume from that point.
+const initialOffset = 0;
 
 // 6. (optional) Retry failed requests.
 // If an API call fails with a network error, then it will be retried.
