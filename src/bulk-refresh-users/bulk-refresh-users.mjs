@@ -4,7 +4,7 @@
 const instance = 'https://example.com';
 
 // 2. Set this to a moderator's native token.
-// An access token may work, but has not been tested.
+// An access token may work if it has "View private user info" permission.
 const token = '';
 
 // 3. (optional) Set API options to filter the list of users.
