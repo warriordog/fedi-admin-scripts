@@ -78,9 +78,13 @@ class ContentTypeError extends ResponseError {
 
 let offset = initialOffset;
 
-process.addListener('beforeExit', code => {
+process.on('SIGINT', () => process.exit(-1));
+
+process.on('exit', code => {
 	if (code === 0) {
 		console.log(`Completed at offset ${offset}`);
+	} else if (code === -1) {
+		console.error(`Terminated at offset ${offset}.`);
 	} else if (offset >= 100) {
 		console.error(`Failed at offset ${offset}. Last successful offset: ${offset - 100}.`);
 	} else {
