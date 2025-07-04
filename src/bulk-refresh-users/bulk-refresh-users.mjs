@@ -142,6 +142,18 @@ async function updateUsersAtRate(page) {
 		delay = 0;
 
 		const user = page.shift();
+
+		if (user.isSuspended) {
+			console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is suspended`);
+			continue;
+		}
+
+		const updatedAt = new Date(user.updatedAt ?? user.createdAt).valueOf();
+		if (Date.now() - updatedAt < minimumOutdatedTime) {
+			console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is recently updated`);
+			continue;
+		}
+
 		const promise = updateNextUser(user).catch(err => {
 			// Check for retryable errors
 			if (err instanceof StatusError && retryStatuses.includes(err.statusCode)) {
@@ -174,17 +186,6 @@ async function updateUsersAtRate(page) {
  * @returns {Promise<void>}
  */
 async function updateNextUser(user) {
-	if (user.isSuspended) {
-		console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is suspended`);
-		return;
-	}
-
-	const updatedAt = new Date(user.updatedAt ?? user.createdAt).valueOf();
-	if (Date.now() - updatedAt < minimumOutdatedTime) {
-		console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is recently updated`);
-		return;
-	}
-
 	try {
 		await api('federation/update-remote-user', { userId: user.id });
 		console.log(`Successfully updated user ${user.id} (${user.username}@${user.host})`);
