@@ -131,6 +131,7 @@ try {
  * @property {boolean} isSuspended
  * @property {string} createdAt
  * @property {string | null} [updatedAt]
+ * @property {string | null} [lastFetchedAt]
  */
 
 /**
@@ -155,7 +156,7 @@ async function updateUsersAtRate(page) {
 			continue;
 		}
 
-		const updatedAt = new Date(user.updatedAt ?? user.createdAt).valueOf();
+		const updatedAt = new Date(user.lastFetchedAt ?? user.updatedAt ?? user.createdAt).valueOf();
 		if (Date.now() - updatedAt < minimumOutdatedTime) {
 			console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is recently updated`);
 			continue;
