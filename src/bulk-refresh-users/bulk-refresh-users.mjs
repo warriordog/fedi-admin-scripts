@@ -14,6 +14,8 @@ const usersFilter = {
 	sort: '-createdAt',
 	state: 'available',
 };
+// Skip users who have been updated within this many milliseconds ago.
+const minimumOutdatedTime = 0;
 
 // 4. (optional) Set minimum time in milliseconds between requests to update a user.
 // The current Sharkey release supports a maximum of 4 calls per second (250 ms) with default rate limits.
@@ -114,6 +116,8 @@ try {
  * @property {string} host
  * @property {string} username
  * @property {boolean} isSuspended
+ * @property {string} createdAt
+ * @property {string | null} [updatedAt]
  */
 
 /**
@@ -165,7 +169,13 @@ async function updateUsersAtRate(page) {
  */
 async function updateNextUser(user) {
 	if (user.isSuspended) {
-		console.log(`Not updating user ${user.id} (${user.username}@${user.host}): user is suspended`);
+		console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is suspended`);
+		return;
+	}
+
+	const updatedAt = new Date(user.updatedAt ?? user.createdAt).valueOf();
+	if (Date.now() - updatedAt < minimumOutdatedTime) {
+		console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is recently updated`);
 		return;
 	}
 
