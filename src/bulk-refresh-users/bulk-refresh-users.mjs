@@ -156,7 +156,10 @@ async function updateUsersAtRate(page) {
 			continue;
 		}
 
-		const updatedAt = new Date(user.lastFetchedAt ?? user.updatedAt ?? user.createdAt).valueOf();
+		const dates = [user.lastFetchedAt, user.updatedAt, user.createdAt]
+			.filter(d => d != null)
+			.map(d => new Date(d).valueOf());
+		const updatedAt = Math.max(...dates);
 		if (Date.now() - updatedAt < minimumOutdatedTime) {
 			console.log(`Skipping user ${user.id} (${user.username}@${user.host}): user is recently updated`);
 			continue;
