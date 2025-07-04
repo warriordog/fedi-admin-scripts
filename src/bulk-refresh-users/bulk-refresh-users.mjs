@@ -105,8 +105,11 @@ try {
 			...usersFilter
 		});
 
+		// Page gets muted by updateUsersAtRate so we have to check it here!
+		const pageLength = page.length;
+
 		// Stop looping when we reach the end
-		if (page.length < 1) {
+		if (pageLength < 1) {
 			break;
 		}
 
@@ -114,7 +117,7 @@ try {
 		await updateUsersAtRate(page);
 
 		// Update offset *after* success
-		offset += page.length;
+		offset += pageLength;
 	}
 } catch (err) {
 	console.error('Failed with unhandled error: ', err);
