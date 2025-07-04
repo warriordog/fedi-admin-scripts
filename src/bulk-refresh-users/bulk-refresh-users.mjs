@@ -69,9 +69,23 @@ class ContentTypeError extends ResponseError {
 	}
 }
 
-for (let offset = initialOffset;;) {
-	try {
+let offset = initialOffset;
+
+process.addListener('beforeExit', code => {
+	if (code === 0) {
+		console.log(`Completed at offset ${offset}`);
+	} else if (offset >= 100) {
+		console.error(`Failed at offset ${offset}. Last successful offset: ${offset - 100}.`);
+	} else {
+		console.error(`Failed at offset ${offset}.`);
+	}
+});
+
+try {
+	while (true) {
 		console.log(`Updating page from offset ${offset}:`);
+
+		/** @type {User[]} */
 		const page = await api('admin/show-users', {
 			offset,
 			limit: 100,
@@ -79,22 +93,19 @@ for (let offset = initialOffset;;) {
 			...usersFilter
 		});
 
-		// Stop looping when we stop getting results
-		if (page.length < 1) break;
-		offset += page.length;
+		// Stop looping when we reach the end
+		if (page.length < 1) {
+			break;
+		}
 
 		// Process the page at the configured rate
 		await updateUsersAtRate(page);
-	} catch (err) {
-		console.error('Failed with unhandled error: ', err);
 
-		if (offset >= 100) {
-			console.error(`Terminating at offset ${offset}. Last successful offset: ${offset - 100}.`);
-		} else {
-			console.error(`Terminating at offset ${offset}.`);
-		}
-		break;
+		// Update offset *after* success
+		offset += page.length;
 	}
+} catch (err) {
+	console.error('Failed with unhandled error: ', err);
 }
 
 /**
