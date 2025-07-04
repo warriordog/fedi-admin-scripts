@@ -35,6 +35,11 @@ const retryLimit = 3;
 const retryBackoff = 1;
 const retryStatuses = [429, 501, 502, 503];
 
+// 7. (optional) Reduce overhead
+// These options can reduce the amount of data transferred and fetched by the backend.
+// Older sharkey versions do not support them and may return errors.
+const returnLiteUser = false;
+
 // ==== Stop here! Don't touch anything else! ====
 
 class ResponseError extends Error {
@@ -92,6 +97,7 @@ try {
 			offset,
 			limit: 100,
 			origin: 'remote',
+			detail: returnLiteUser ? false : undefined,
 			...usersFilter
 		});
 
