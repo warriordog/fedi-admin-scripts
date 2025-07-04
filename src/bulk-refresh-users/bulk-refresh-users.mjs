@@ -78,6 +78,21 @@ class ContentTypeError extends ResponseError {
 
 let offset = initialOffset;
 
+for (let i = 2; i < process.argv.length; i++) {
+	if (process.argv[i] === '--from') {
+		if (i < process.argv.length - 1) {
+			offset = parseInt(process.argv[i + 1], 10);
+			if (Number.isNaN(offset)) {
+				console.error(`Invalid offset: ${process.argv[i + 1]}`);
+				process.exit(1);
+			}
+		} else {
+			console.error('Missing offset');
+			process.exit(1);
+		}
+	}
+}
+
 process.on('SIGINT', () => process.exit(-1));
 
 process.on('exit', code => {
